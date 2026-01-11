@@ -1,9 +1,10 @@
-import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
+// src/router/index.ts
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    component: () => import('@/layout/BasicLayout.vue'), // 基础布局
+    component: () => import('@/layout/BasicLayout.vue'),
     redirect: '/problem',
     children: [
       {
@@ -12,7 +13,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/problem/ProblemList.vue'),
         meta: { title: '题目列表' }
       },
-      // 其他路由后续添加
+      // ✅ 新增：题目详情页路由
+      // :id 是动态参数，对应 url 中的 2007326004497866754
+      {
+        path: '/problem/detail/:id',
+        name: 'ProblemDetail',
+        component: () => import('@/views/problem/ProblemDetail.vue'),
+        meta: { title: '题目详情' }
+      }
     ]
   },
   {
