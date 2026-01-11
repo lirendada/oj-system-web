@@ -550,3 +550,16 @@ export namespace ContestAPI {
   type CreateRequest = ContestAddDTO;
   type UpdateRequest = ContestAddDTO;
 }
+
+
+/**
+ * 排行榜单项 VO
+ * 通常包含用户信息和刷题数量
+ */
+export interface RankItemVO {
+  userId: number;       // 用户ID
+  nickname: string;     // 昵称
+  avatar: string;       // 头像地址
+  acceptedCount: number;  // 通过题目数 (或者叫 score)
+  rank?: number;        // 排名 (前端计算或后端返回)
+}

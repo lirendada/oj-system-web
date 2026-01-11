@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref, reactive, watch, onBeforeUnmount } from 'vue'
+import { onMounted, ref, reactive, watch, onBeforeUnmount, computed } from 'vue' // ✅ 新增 computed
 import { useRoute } from 'vue-router'
 import { getProblemDetail, submitProblem, getSubmitResult } from '@/api/problem'
+import { useUserStore } from '@/stores/user' // ✅ 引入 userStore
 import { ElMessage, ElMessageBox } from 'element-plus'
 import CodeEditor from '@/components/CodeEditor/index.vue'
 import MdViewer from '@/components/MdViewer/index.vue'
@@ -15,7 +16,7 @@ import {
   RefreshRight,
   InfoFilled,
   CaretRight,
-  EditPen // ✅ 将 Code 改为 EditPen (或者 Monitor)
+  EditPen
 } from '@element-plus/icons-vue'
 import { 
   type ProblemDetailVO, 
@@ -31,6 +32,7 @@ import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 
 const route = useRoute()
+const userStore = useUserStore() // ✅ 初始化 store
 const problem = ref<ProblemDetailVO>()
 const loading = ref(false)
 const submitting = ref(false)
@@ -94,27 +96,41 @@ if __name__ == "__main__":
 
 const codeCache = reactive<Record<string, string>>({})
 
+// ✅ 新增：获取带用户隔离的 Storage Key
+const getStorageKey = (problemId: number) => {
+  const userId = userStore.userInfo?.user?.userId || 'guest'
+  return `oj_code_${userId}_${problemId}`
+}
+
 const initCodeCache = (problemId: number) => {
+  // 1. 先重置为默认模板，防止之前的缓存残留
   languageOptions.forEach(opt => {
     codeCache[opt.value] = opt.template
   })
-  const storageKey = `oj_code_${problemId}`
+  
+  // 2. 尝试读取当前用户的缓存
+  const storageKey = getStorageKey(problemId) // ✅ 使用新 Key
   const savedCache = localStorage.getItem(storageKey)
+  
   if (savedCache) {
     try {
       const parsed = JSON.parse(savedCache)
+      // 这里的 Object.assign 会覆盖掉默认模板
       Object.assign(codeCache, parsed)
     } catch (e) {
       console.error('读取代码缓存失败', e)
     }
   }
+  
+  // 3. 设置当前编辑器代码
   form.code = codeCache[form.language] || ''
 }
 
 const saveToLocalStorage = () => {
   if (form.problemId <= 0) return
   codeCache[form.language] = form.code
-  localStorage.setItem(`oj_code_${form.problemId}`, JSON.stringify(codeCache))
+  // ✅ 使用新 Key 保存
+  localStorage.setItem(getStorageKey(form.problemId), JSON.stringify(codeCache))
 }
 
 watch(() => form.language, (newLang, oldLang) => {
@@ -127,6 +143,7 @@ watch(() => form.language, (newLang, oldLang) => {
 
 watch(() => form.code, (newCode) => {
   codeCache[form.language] = newCode
+  // 这里可以加一个防抖，不过本地存储性能通常够用，暂时保持实时
 })
 
 const handleResetCode = () => {
@@ -157,6 +174,7 @@ const loadDetail = async () => {
     const res = await getProblemDetail(Number(idStr))
     problem.value = res
     form.problemId = Number(res.problemId)
+    // 加载详情后初始化缓存
     initCodeCache(form.problemId)
   } catch (error) {
     console.error(error)
@@ -166,6 +184,13 @@ const loadDetail = async () => {
 }
 
 const handleSubmit = async () => {
+  if (!userStore.token) {
+    ElMessage.warning('请先登录后再提交代码')
+    // 可选：跳转去登录
+    // router.push('/login')
+    return
+  }
+  
   if (!form.code.trim()) {
     ElMessage.warning('代码不能为空')
     return
@@ -417,13 +442,13 @@ onBeforeUnmount(() => {
   background: #fff;
 }
 
-/* ✅ 强制覆盖 Element Plus 卡片头部默认样式，实现极简工具栏 */
+/* 强制覆盖 Element Plus 卡片头部默认样式，实现极简工具栏 */
 :deep(.el-card__header) {
-  padding: 0 16px !important; /* 移除原来的大 padding */
-  height: 44px; /* 固定一个小高度 */
+  padding: 0 16px !important;
+  height: 44px;
   line-height: 44px;
   border-bottom: 1px solid #f0f0f0;
-  background-color: #fff; /* 纯白背景 */
+  background-color: #fff;
 }
 
 :deep(.el-card__body) {
@@ -559,7 +584,10 @@ onBeforeUnmount(() => {
 :deep(.splitpanes__splitter:hover) { background-color: rgba(64, 158, 255, 0.05); }
 
 /* 结果弹窗 */
+.result-content { text-align: center; }
 .result-content h2 { margin: 10px 0 20px 0; }
 .metrics { background: #f5f7fa; padding: 15px; border-radius: 8px; display: flex; justify-content: space-around; }
 .metrics p { margin: 0; display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.error-msg { margin-top: 20px; text-align: left; }
+.error-msg pre { background: #fff2f0; color: #ff4d4f; padding: 10px; border-radius: 4px; overflow: auto; max-height: 200px; }
 </style>
