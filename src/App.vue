@@ -29,4 +29,31 @@ html, body, #app {
   'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
   -webkit-font-smoothing: antialiased; /* 字体抗锯齿 */
 }
+/* 全局重置与基础字体设置 */
+body {
+  margin: 0;
+  padding: 0;
+  /* ✅ LeetCode 同款字体栈 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  /* ✅ 让字体在 Mac 上更清晰锐利 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* ✅ 基础字号和颜色 */
+  font-size: 14px;
+  color: #262626; /* 这种黑不是纯黑，看起来更舒服 */
+  background-color: #f7f8fa; /* 整体背景稍微带点灰，不刺眼 */
+}
+
+/* 滚动条美化 (Chrome/Safari) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #dfe1e5;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 </style>
