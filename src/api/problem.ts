@@ -1,7 +1,7 @@
 // src/api/problem.ts
 import request from '@/utils/request'
 // 假设您已将文件重命名为 global.ts 并放在 src/types 下
-import type { ProblemAPI, RankItemVO } from '@/types/global'
+import type { ProblemAPI, RankItemVO, SubmitRecordVO } from '@/types/global'
 
 enum Api {
   List = '/problem/list/page',
@@ -25,7 +25,7 @@ export const getProblemList = (data: ProblemAPI.ListRequest) => {
 /**
  * 获取题目详情
  */
-export const getProblemDetail = (id: number) => {
+export const getProblemDetail = (id: string) => {
   return request.get<any, ProblemAPI.DetailResponse>(`${Api.Detail}/${id}`)
 }
 

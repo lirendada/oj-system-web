@@ -1,39 +1,49 @@
-// src/router/index.ts
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-
-const routes: RouteRecordRaw[] = [
-  {
-    path: '/',
-    component: () => import('@/layout/BasicLayout.vue'),
-    redirect: '/problem',
-    children: [
-      {
-        path: '/problem',
-        name: 'ProblemList',
-        component: () => import('@/views/problem/ProblemList.vue'),
-        meta: { title: '题目列表' }
-      },
-      // ✅ 新增：题目详情页路由
-      // :id 是动态参数，对应 url 中的 2007326004497866754
-      {
-        path: '/problem/detail/:id',
-        name: 'ProblemDetail',
-        component: () => import('@/views/problem/ProblemDetail.vue'),
-        meta: { title: '题目详情' }
-      }
-    ]
-  },
-  {
-    path: '/login',
-    name: 'Login',
-    component: () => import('@/views/user/LoginView.vue'),
-    meta: { title: '用户登录' }
-  }
-]
+import { createRouter, createWebHistory } from 'vue-router'
+import BasicLayout from '@/layout/BasicLayout.vue'
 
 const router = createRouter({
-  history: createWebHistory(),
-  routes
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/',
+      component: BasicLayout,
+      children: [
+        {
+          path: '',
+          name: 'Home',
+          component: () => import('@/views/problem/ProblemList.vue')
+        },
+        {
+          path: 'problem',
+          name: 'ProblemList',
+          component: () => import('@/views/problem/ProblemList.vue')
+        },
+        {
+          path: 'problem/detail/:id',
+          name: 'ProblemDetail',
+          component: () => import('@/views/problem/ProblemDetail.vue'),
+          meta: { hideFooter: true } // 详情页可能不需要底部 footer，看你喜好
+        },
+        // ✅ 新增：竞赛列表路由
+        {
+          path: 'contest',
+          name: 'ContestList',
+          component: () => import('@/views/contest/ContestList.vue')
+        },
+        // 预留：竞赛详情路由 (后面开发详情页时会用到)
+        {
+          path: 'contest/:id',
+          name: 'ContestDetail',
+          component: () => import('@/views/contest/ContestDetail.vue')
+        },
+      ]
+    },
+    {
+      path: '/login',
+      name: 'Login',
+      component: () => import('@/views/user/LoginView.vue')
+    }
+  ]
 })
 
 export default router

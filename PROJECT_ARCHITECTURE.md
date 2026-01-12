@@ -31,10 +31,11 @@ liren-oj-web/
 │   │   ├── problem.ts    # 题目相关接口
 │   │   ├── user.ts       # 用户相关接口
 │   │   ├── judge.ts      # 判题接口（预留）
-│   │   └── contest.ts    # 比赛接口（预留）
+│   │   └── contest.ts    # 竞赛相关接口
 │   ├── components/       # 公共组件
 │   │   ├── CodeEditor/   # 代码编辑器组件
-│   │   └── MdViewer/     # Markdown 查看器组件
+│   │   ├── MdViewer/     # Markdown 查看器组件
+│   │   └── GlobalHeader.vue  # 全局导航栏组件
 │   ├── layout/           # 布局组件
 │   │   └── BasicLayout.vue
 │   ├── router/           # 路由配置
@@ -44,20 +45,26 @@ liren-oj-web/
 │   ├── styles/           # 全局样式
 │   │   └── index.scss
 │   ├── types/            # TypeScript 类型定义
-│   │   └── global.d.ts
+│   │   └── global.ts     # 全局类型定义
 │   ├── utils/            # 工具函数
 │   │   └── request.ts    # Axios 封装
 │   ├── views/            # 页面组件
-│   │   ├── problem/
-│   │   │   ├── ProblemList.vue    # 题目列表页
+│   │   ├── problem/      # 题目相关页面
+│   │   │   ├── ProblemList.vue    # 题目列表页（含排行榜）
 │   │   │   └── ProblemDetail.vue  # 题目详情页
-│   │   └── user/
+│   │   ├── contest/      # 竞赛相关页面
+│   │   │   ├── ContestList.vue    # 竞赛列表页
+│   │   │   └── ContestDetail.vue  # 竞赛详情页
+│   │   └── user/         # 用户相关页面
 │   │       └── LoginView.vue      # 用户登录页
 │   ├── App.vue           # 应用根组件
 │   └── main.ts           # 应用入口
+├── public/               # 静态资源
 ├── index.html            # HTML 入口
 ├── package.json          # 项目依赖
 ├── tsconfig.json         # TypeScript 配置
+├── tsconfig.app.json     # TypeScript 应用配置
+├── tsconfig.node.json    # TypeScript Node 配置
 └── vite.config.ts        # Vite 配置
 ```
 
@@ -70,16 +77,20 @@ liren-oj-web/
 | 路径 | 组件 | 说明 |
 |-----|------|------|
 | `/` | BasicLayout | 基础布局（嵌套路由） |
+| `` (空路径) | ProblemList | 首页，题目列表 |
 | `/problem` | ProblemList | 题目列表页 |
 | `/problem/detail/:id` | ProblemDetail | 题目详情页（动态参数） |
+| `/contest` | ContestList | 竞赛列表页 |
+| `/contest/:id` | ContestDetail | 竞赛详情页 |
 | `/login` | LoginView | 用户登录页 |
 
 ### 2.2 路由特点
 
-- 默认重定向到 `/problem`
-- 使用动态路由参数 `:id` 获取题目详情
-- 路由元信息（meta）包含页面标题
+- 首页默认显示题目列表
+- 使用动态路由参数 `:id` 获取题目/竞赛详情
+- 路由元信息（meta）包含页面标题和其他配置
 - 嵌套路由设计，支持布局扩展
+- 采用懒加载优化性能
 
 ### 2.3 路由配置代码
 
@@ -88,24 +99,39 @@ liren-oj-web/
 {
   path: '/',
   component: BasicLayout,
-  redirect: '/problem',
   children: [
     {
+      path: '',
+      name: 'Home',
+      component: () => import('@/views/problem/ProblemList.vue')
+    },
+    {
       path: 'problem',
-      component: () => import('@/views/problem/ProblemList.vue'),
-      meta: { title: '题目列表' }
+      name: 'ProblemList',
+      component: () => import('@/views/problem/ProblemList.vue')
     },
     {
       path: 'problem/detail/:id',
+      name: 'ProblemDetail',
       component: () => import('@/views/problem/ProblemDetail.vue'),
-      meta: { title: '题目详情' }
+      meta: { hideFooter: true }
+    },
+    {
+      path: 'contest',
+      name: 'ContestList',
+      component: () => import('@/views/contest/ContestList.vue')
+    },
+    {
+      path: 'contest/:id',
+      name: 'ContestDetail',
+      component: () => import('@/views/contest/ContestDetail.vue')
     }
   ]
 },
 {
   path: '/login',
-  component: () => import('@/views/user/LoginView.vue'),
-  meta: { title: '登录' }
+  name: 'Login',
+  component: () => import('@/views/user/LoginView.vue')
 }
 ```
 
@@ -148,6 +174,8 @@ liren-oj-web/
 3. 难度筛选（简单/中等/困难）
 4. 显示题目ID、标题、标签、难度、通过率
 5. 点击题目标题跳转到详情页
+6. **排行榜功能**：支持日榜、周榜、月榜、总榜切换
+7. **全局导航**：集成导航栏，快速访问各模块
 
 **UI 组件：**
 - `el-table`：表格展示
@@ -155,6 +183,9 @@ liren-oj-web/
 - `el-input`：搜索输入框
 - `el-select`：难度筛选下拉框
 - `el-tag`：难度标签
+- `el-tabs`：排行榜 Tab 切换
+- `el-avatar`：用户头像
+- `el-trophy`：奖杯图标（排行榜）
 
 **数据结构：**
 ```typescript
@@ -163,7 +194,9 @@ queryParams: {
   current: 1,
   pageSize: 10,
   keyword: '',
-  difficulty: undefined
+  difficulty: undefined,
+  sortField?: string,
+  sortOrder?: 'ascend' | 'descend'
 }
 
 // 响应数据
@@ -174,14 +207,29 @@ problemList: {
   current: number,
   pages: number
 }
+
+// 排行榜数据
+rankList: RankItemVO[]
+
+// 排行榜当前 Tab
+activeRankTab: 'day' | 'week' | 'month' | 'total'
+
+// 排行榜类型映射
+typeMap: {
+  day: 'daily',
+  week: 'weekly',
+  month: 'monthly',
+  total: 'total'
+}
 ```
 
 **关键方法：**
-- `fetchProblems()`：获取题目列表
+- `loadData()`：获取题目列表
+- `loadRankData()`：获取排行榜数据
 - `handleSearch()`：搜索处理
-- `handleReset()`：重置筛选
 - `handlePageChange()`：分页处理
-- `goToDetail()`：跳转到详情页
+- `toDetail()`：跳转到详情页
+- `getDifficultyColor()`：获取难度对应的标签颜色
 
 **难度标签颜色映射：**
 - 简单：success（绿色）
@@ -307,6 +355,105 @@ rules: {
 - `handleLogin()`：处理登录逻辑
 - `router.push('/problem')`：登录成功后跳转
 
+### 3.6 ContestList.vue - 竞赛列表页
+
+**功能列表：**
+1. 分页展示竞赛列表
+2. 关键词搜索（竞赛标题）
+3. 状态筛选（未开始/进行中/已结束）
+4. 显示竞赛标题、描述、状态、时间、持续时间
+5. 竞赛报名功能
+6. 点击竞赛跳转到详情页
+
+**UI 组件：**
+- `el-card`：竞赛卡片
+- `el-pagination`：分页组件
+- `el-input`：搜索输入框
+- `el-select`：状态筛选下拉框
+- `el-tag`：状态标签
+
+**数据结构：**
+```typescript
+// 查询参数
+queryParams: {
+  current: number,
+  pageSize: number,
+  keyword?: string,
+  status?: number
+}
+
+// 响应数据
+contestList: {
+  records: ContestVO[],
+  total: number,
+  size: number,
+  current: number,
+  pages: number
+}
+```
+
+**关键方法：**
+- `loadData()`：获取竞赛列表
+- `handleSearch()`：搜索处理
+- `handlePageChange()`：分页处理
+- `toDetail()`：跳转到详情页
+- `registerContest()`：报名竞赛
+
+### 3.7 ContestDetail.vue - 竞赛详情页
+
+**功能列表：**
+1. 显示竞赛详细信息（标题、描述、时间等）
+2. 显示竞赛题目列表
+3. 显示竞赛排行榜
+4. 竞赛报名功能
+
+**UI 组件：**
+- `el-card`：信息卡片
+- `el-table`：题目列表/排行榜
+
+**数据结构：**
+```typescript
+// 竞赛详情
+contestDetail: ContestVO
+
+// 竞赛题目列表
+problemList: ContestProblemVO[]
+
+// 竞赛排行榜
+rankList: ContestRankVO[]
+```
+
+**关键方法：**
+- `loadContestDetail()`：获取竞赛详情
+- `loadProblemList()`：获取竞赛题目
+- `loadRankList()`：获取竞赛排行榜
+- `registerContest()`：报名竞赛
+
+### 3.8 GlobalHeader.vue - 全局导航栏
+
+**功能列表：**
+1. 导航菜单（题目、竞赛）
+2. 用户登录状态显示
+3. 用户头像与昵称展示
+4. 退出登录功能
+5. 响应式布局
+
+**UI 组件：**
+- `el-menu`：导航菜单
+- `el-avatar`：用户头像
+- `el-dropdown`：下拉菜单
+
+**数据结构：**
+```typescript
+// 用户状态
+isLogin: boolean
+userInfo: UserLoginVO | null
+```
+
+**关键方法：**
+- `handleLogout()`：退出登录
+- `navigateTo()`：路由跳转
+
 ---
 
 ## 四、API 接口层
@@ -354,46 +501,66 @@ interface Result<T> {
 
 | 接口名 | 方法 | 路径 | 说明 |
 |-------|------|------|------|
-| getProblemList | GET | /problem/list | 获取题目列表（分页） |
-| getProblemDetail | GET | /problem/:id | 获取题目详情 |
-| submitCode | POST | /problem/submit | 提交代码 |
-| getSubmitResult | GET | /problem/submit/result/:id | 查询判题结果 |
+| getProblemList | POST | /problem/list/page | 获取题目列表（分页） |
+| getProblemDetail | GET | /problem/detail/:id | 获取题目详情 |
+| submitProblem | POST | /problem/submit | 提交代码 |
+| getSubmitResult | GET | /problem/submit/result/:submitId | 查询判题结果 |
+| getRankList | GET | /problem/rank/:type | 获取排行榜 |
 
 **请求参数：**
 ```typescript
 // 获取题目列表
-getProblemList(params: {
+getProblemList(data: {
   current: number;
   pageSize: number;
   keyword?: string;
-  difficulty?: number;
+  difficulty?: DifficultyEnum;
+  tags?: string[];
+  sortField?: string;
+  sortOrder?: 'ascend' | 'descend';
 })
 
+// 获取排行榜
+getRankList(type: 'daily' | 'weekly' | 'monthly' | 'total')
+
 // 提交代码
-submitCode(data: {
+submitProblem(data: {
   problemId: number;
-  language: string;
+  language: LanguageEnum;
   code: string;
+  contestId?: number;
 })
 ```
 
 **响应数据：**
 ```typescript
 // 题目列表响应
-{
-  code: 1000,
-  data: {
-    records: ProblemVO[],
-    total: number,
-    size: number,
-    current: number
-  }
+interface PageResult<ProblemVO> {
+  records: ProblemVO[],
+  total: number,
+  size: number,
+  current: number,
+  pages: number
 }
 
 // 题目详情响应
-{
-  code: 1000,
-  data: ProblemDetailVO
+interface ProblemDetailVO {
+  problemId: string;
+  title: string;
+  difficulty: DifficultyEnum;
+  // ... 更多字段
+}
+
+// 提交响应
+type SubmitResponse = string  // 返回 submitId
+
+// 排行榜响应
+interface RankItemVO {
+  userId: number;
+  nickname: string;
+  avatar: string;
+  acceptedCount: number;
+  rank?: number;
 }
 ```
 
@@ -424,10 +591,90 @@ login(data: {
 }
 ```
 
-### 4.4 预留接口文件
+### 4.4 contest.ts - 竞赛接口
 
-- **judge.ts**：判题相关接口（空文件，预留）
-- **contest.ts**：比赛相关接口（空文件，预留）
+**接口列表：**
+
+| 接口名 | 方法 | 路径 | 说明 |
+|-------|------|------|------|
+| getContestList | POST | /contest/list | 获取竞赛列表（分页） |
+| registerContest | POST | /contest/register/:contestId | 报名竞赛 |
+| getContestDetail | GET | /contest/:contestId | 获取竞赛详情 |
+| getContestProblemList | GET | /contest/:contestId/problems | 获取竞赛题目列表 |
+| getContestRank | GET | /contest/rank/:contestId | 获取竞赛排行榜 |
+
+**请求参数：**
+```typescript
+// 获取竞赛列表
+getContestList(data: {
+  current: number;
+  pageSize: number;
+  keyword?: string;
+  status?: number;
+})
+
+// 报名竞赛
+registerContest(contestId: string)
+
+// 获取竞赛详情
+getContestDetail(contestId: string)
+
+// 获取竞赛题目列表
+getContestProblemList(contestId: string)
+
+// 获取竞赛排行榜
+getContestRank(contestId: string)
+```
+
+**响应数据：**
+```typescript
+// 竞赛列表响应
+interface PageResult<ContestVO> {
+  records: ContestVO[],
+  total: number,
+  size: number,
+  current: number,
+  pages: number
+}
+
+// 竞赛详情响应
+interface ContestVO {
+  contestId: string;
+  title: string;
+  description: string;
+  status: ContestStatusEnum;
+  statusDesc: string;
+  startTime: string;
+  endTime: string;
+  duration: string;
+  registered?: boolean;
+  // ... 更多字段
+}
+
+// 竞赛题目列表响应
+interface ContestProblemVO {
+  id: string;
+  contestId: string;
+  problemId: string;
+  displayId: string;  // A, B, C...
+  title: string;
+  difficulty: number;
+}
+
+// 竞赛排行榜响应
+interface ContestRankVO {
+  userId: string;
+  nickname: string;
+  avatar: string;
+  rank: number;
+  totalScore: number;
+  problemScores: Record<string, number>;  // problemId -> score
+}
+```
+
+### 4.5 judge.ts - 判题接口
+
+当前为空，预留用于未来扩展。
 
 ---
 
@@ -438,21 +685,36 @@ login(data: {
 **状态定义：**
 ```typescript
 state: {
-  isLogin: boolean;      // 登录状态
-  token: string;         // 用户 Token
-  user: UserEntity | null;  // 用户信息
+  token: string;                    // 用户 Token
+  userInfo: UserLoginVO | null;     // 用户信息
 }
 ```
 
 **方法列表：**
-- `setLoginState(user, token)`：设置登录状态
+- `setLoginState(data: UserLoginVO)`：设置登录状态
 - `logout()`：登出并清除状态
 - `loadState()`：从 localStorage 加载状态
 
 **持久化策略：**
-- 使用 localStorage 存储用户状态
-- 应用启动时自动加载状态
-- 登出时清除所有状态
+- 使用 localStorage 存储 token 和 userInfo
+- 应用启动时自动从 localStorage 恢复状态
+- 登出时清除 localStorage 中的所有用户数据
+
+**数据结构：**
+```typescript
+interface UserLoginVO {
+  user: UserEntity;
+  token: string;
+}
+
+interface UserEntity {
+  userId: number;
+  userAccount: string;
+  nickName: string;
+  avatar: string;
+  // ... 更多字段
+}
+```
 
 ---
 
@@ -533,11 +795,51 @@ markdownit({
 **样式来源：**
 - GitHub Markdown CSS（通过 CDN 引入）
 
+### 6.3 GlobalHeader.vue - 全局导航栏
+
+**功能列表：**
+1. 顶部导航菜单
+2. 用户登录状态显示
+3. 用户头像与昵称展示
+4. 退出登录功能
+5. 响应式布局支持
+
+**UI 组件：**
+- `el-menu`：导航菜单
+- `el-menu-item`：菜单项
+- `el-avatar`：用户头像
+- `el-dropdown`：下拉菜单
+- `el-dropdown-item`：下拉菜单项
+
+**Props：**
+```typescript
+// 无 Props，直接从 userStore 读取状态
+```
+
+**数据结构：**
+```typescript
+// 用户状态（从 useUserStore 获取）
+const userStore = useUserStore()
+const { token, userInfo } = storeToRefs(userStore)
+
+// 默认头像
+const DEFAULT_AVATAR = 'https://p.ssl.qhimg.com/sdm/480_480_/t01520a1bd1802ae864.jpg'
+```
+
+**关键方法：**
+- `handleLogout()`：退出登录
+- `router.push()`：路由跳转
+
+**样式特点：**
+- 固定在页面顶部
+- 响应式布局
+- 简洁现代的设计风格
+
 ---
 
 ## 七、类型系统
 
-### 7.1 类型定义文件：src/types/global.d.ts
+### 7.1 类型定义文件：src/types/global.ts
 
 **类型组织结构：**
 
@@ -545,6 +847,7 @@ markdownit({
 - `Result<T>`：统一响应结构
 - `PageRequest`：分页请求参数
 - `PageResult<T>`：分页响应结果
+- `BaseEntity`：基础实体（createTime, updateTime, createBy, updateBy）
 
 #### 7.1.2 枚举类型
 
@@ -552,16 +855,16 @@ markdownit({
 |-------|------|---|
 | `DifficultyEnum` | 题目难度 | EASY=1, MEDIUM=2, HARD=3 |
 | `SubmitStatusEnum` | 判题状态 | PENDING=0, JUDGING=10, SUCCEED=30, FAILED=40 |
-| `JudgeResultEnum` | 判题结果 | AC=0, WA=1, TLE=2, MLE=3, OLE=4, RE=5, CE=6, SE=7 |
+| `JudgeResultEnum` | 判题结果 | AC=1, WA=2, TLE=3, MLE=4, RE=5, CE=6, SE=7 |
 | `LanguageEnum` | 编程语言 | Java, C++, Python, C, Go, JavaScript |
-| `ContestStatusEnum` | 比赛状态 | NOT_STARTED=0, IN_PROGRESS=1, ENDED=2 |
+| `ContestStatusEnum` | 竞赛状态 | NOT_STARTED=0, IN_PROGRESS=1, ENDED=2 |
 | `UserStatusEnum` | 用户状态 | DISABLED=0, NORMAL=1 |
 
 **枚举文本映射：**
 - `DifficultyText`：难度文本（简单/中等/困难）
 - `JudgeResultText`：判题结果文本（通过/答案错误/超时等）
 - `JudgeResultClass`：判题结果样式类名（result-ac/result-wa 等）
-- `ContestStatusText`：比赛状态文本
+- `ContestStatusText`：竞赛状态文本
 
 #### 7.1.3 DTO 类型（请求数据）
 
@@ -601,8 +904,11 @@ markdownit({
 | `ProblemBasicInfoDTO` | 题目基础信息 |
 | `ProblemVO` | 题目列表项 |
 | `ProblemDetailVO` | 题目详情（继承 ProblemVO） |
-| `SubmitRecordVO` | 提交记录 |
-| `ContestVO` | 比赛信息 |
+| `SubmitRecordVO` | 提交记录（包含 passCaseCount、totalCaseCount） |
+| `ContestVO` | 竞赛信息 |
+| `ContestProblemVO` | 竞赛题目 |
+| `ContestRankVO` | 竞赛排行榜 |
+| `RankItemVO` | 排行榜单项（日榜、周榜、月榜、总榜） |
 | `UserBasicInfoDTO` | 用户基础信息 |
 | `ProblemSubmitUpdateDTO` | 提交记录更新（判题回写） |
 
@@ -746,22 +1052,37 @@ proxy: {
    - 全面的 TypeScript 类型定义
    - 与后端 Java 结构体对齐
    - 枚举类型完整
+   - 命名空间组织
 
 4. **用户友好的界面**
    - Element Plus 组件库
    - 自定义样式优化
    - 响应式设计
+   - 全局导航栏
 
 5. **功能完整的在线判题**
    - Monaco Editor 集成
-   - 多语言支持
+   - 多语言支持（Java/C++/Python/C/Go/JavaScript）
    - 实时判题
    - 代码缓存
+   - 轮询机制获取结果
 
-6. **良好的代码组织**
+6. **丰富的排行榜系统**
+   - 日榜、周榜、月榜、总榜
+   - 实时排名展示
+   - 用户头像展示
+
+7. **完整的竞赛系统**
+   - 竞赛列表与详情
+   - 竞赛报名功能
+   - 竞赛题目列表
+   - 竞赛排行榜
+
+8. **良好的代码组织**
    - 清晰的目录结构
    - 模块化设计
    - 组件复用
+   - API 层统一管理
 
 ### 10.2 性能优化
 
@@ -796,27 +1117,56 @@ proxy: {
 4. **状态管理扩展**
    - Pinia 支持添加新的 store
 
-### 11.2 待实现功能
+### 11.2 已实现功能
+
+1. **用户模块**
+   - 用户登录
+   - 用户状态管理（Pinia）
+   - Token 持久化
+   - 全局导航栏
+
+2. **题目模块**
+   - 题目列表（分页、搜索、筛选）
+   - 题目详情
+   - 在线代码编辑（Monaco Editor）
+   - 代码提交
+   - 判题结果展示（轮询）
+
+3. **排行榜模块**
+   - 日榜、周榜、月榜、总榜
+   - 用户排名展示
+   - 头像展示
+
+4. **竞赛模块**
+   - 竞赛列表
+   - 竞赛详情
+   - 竞赛报名
+   - 竞赛题目列表
+   - 竞赛排行榜
+
+### 11.3 待实现功能
 
 1. **用户模块**
    - 用户注册
    - 个人信息管理
    - 修改密码
+   - 个人中心页面
 
-2. **比赛模块**
-   - 比赛列表
-   - 比赛详情
-   - 比赛排名
-
-3. **提交记录**
+2. **提交记录**
    - 提交历史查询
    - 代码查看
    - 统计分析
 
-4. **管理后台**
+3. **管理后台**
    - 题目管理
    - 用户管理
-   - 比赛管理
+   - 竞赛管理
+
+4. **其他功能**
+   - 题目收藏
+   - 题解评论
+   - 实时通知
+   - 代码分享
 
 ---
 
@@ -858,4 +1208,27 @@ proxy: {
 
 ## 总结
 
-Liren OJ Web 是一个设计良好、功能完整的在线判题系统前端项目。项目采用现代化的技术栈和最佳实践，具有良好的可维护性和扩展性。项目结构清晰，代码规范，类型系统完善，为后续功能开发提供了坚实的基础。
+Liren OJ Web 是一个功能完善、设计良好的在线判题系统前端项目。项目采用现代化的技术栈和最佳实践，具有良好的可维护性和扩展性。
+
+### 核心优势
+
+1. **技术栈先进**：Vue 3 + TypeScript + Vite，提供最佳开发体验
+2. **类型安全**：完整的 TypeScript 类型系统，与后端完全对齐
+3. **功能完善**：题目系统、竞赛系统、排行榜系统均已实现
+4. **用户体验佳**：Monaco Editor、实时判题、代码缓存等贴心功能
+5. **代码质量高**：清晰的目录结构、模块化设计、组件复用
+
+### 当前状态
+
+- **已完成**：题目模块、竞赛模块、排行榜模块、用户登录
+- **待开发**：用户注册、提交记录、管理后台等
+
+### 适用场景
+
+- 在线编程练习
+- 算法竞赛平台
+- 编程教学工具
+- 技术面试系统
+
+项目结构清晰，代码规范，类型系统完善，为后续功能开发提供了坚实的基础。
+

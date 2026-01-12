@@ -28,7 +28,9 @@ const queryParams = reactive<ProblemQueryRequest>({
   current: 1,
   pageSize: 10,
   keyword: '',
-  difficulty: undefined
+  difficulty: undefined,
+  sortField: undefined, // ✅ 新增
+  sortOrder: undefined  // ✅ 新增
 })
 
 const loadData = async () => {
@@ -72,7 +74,7 @@ const handlePageChange = (page: number) => {
   loadData()
 }
 
-const toDetail = (problemId: number) => {
+const toDetail = (problemId: string) => {
   router.push(`/problem/detail/${problemId}`)
 }
 
@@ -101,6 +103,25 @@ const getRankCountText = () => {
     case 'total': return '累计通过'
     default: return '已通过'
   }
+}
+
+// ✅ 新增：处理表格排序事件
+const handleSortChange = ({ prop, order }: { prop: string, order: string }) => {
+  // Element Plus 的 order 是 'ascending' / 'descending' / null
+  // 后端 PageRequest 通常接收 'ascend' / 'descend'
+  if (!order) {
+    queryParams.sortField = undefined
+    queryParams.sortOrder = undefined
+  } else {
+    // 映射字段名（如果前端 prop 和后端数据库字段不一致，可以在这里转换）
+    // 目前假设后端支持 'difficulty' 和 'rate' (或 'acceptance_rate') 排序
+    // 注意：'rate' 排序通常需要后端 SQL 支持计算列排序
+    queryParams.sortField = prop
+    queryParams.sortOrder = order === 'ascending' ? 'ascend' : 'descend'
+  }
+  // 重置页码并重新加载
+  queryParams.current = 1
+  loadData()
 }
 
 onMounted(() => {

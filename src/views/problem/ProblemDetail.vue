@@ -50,7 +50,7 @@ watch(() => editorConfig.theme, (val) => localStorage.setItem('oj_editor_theme',
 watch(() => editorConfig.fontSize, (val) => localStorage.setItem('oj_editor_fontsize', String(val)))
 
 const form = reactive<ProblemSubmitDTO>({
-  problemId: -1,
+  problemId: '',
   language: LanguageEnum.JAVA,
   code: '',
   contestId: undefined
@@ -97,21 +97,21 @@ if __name__ == "__main__":
 const codeCache = reactive<Record<string, string>>({})
 
 // ✅ 新增：获取带用户隔离的 Storage Key
-const getStorageKey = (problemId: number) => {
+const getStorageKey = (problemId: string) => {
   const userId = userStore.userInfo?.user?.userId || 'guest'
   return `oj_code_${userId}_${problemId}`
 }
 
-const initCodeCache = (problemId: number) => {
+const initCodeCache = (problemId: string) => {
   // 1. 先重置为默认模板，防止之前的缓存残留
   languageOptions.forEach(opt => {
     codeCache[opt.value] = opt.template
   })
-  
+
   // 2. 尝试读取当前用户的缓存
   const storageKey = getStorageKey(problemId) // ✅ 使用新 Key
   const savedCache = localStorage.getItem(storageKey)
-  
+
   if (savedCache) {
     try {
       const parsed = JSON.parse(savedCache)
@@ -121,13 +121,13 @@ const initCodeCache = (problemId: number) => {
       console.error('读取代码缓存失败', e)
     }
   }
-  
+
   // 3. 设置当前编辑器代码
   form.code = codeCache[form.language] || ''
 }
 
 const saveToLocalStorage = () => {
-  if (form.problemId <= 0) return
+  if (!form.problemId) return
   codeCache[form.language] = form.code
   // ✅ 使用新 Key 保存
   localStorage.setItem(getStorageKey(form.problemId), JSON.stringify(codeCache))
@@ -171,9 +171,9 @@ const loadDetail = async () => {
   if (!idStr) return
   loading.value = true
   try {
-    const res = await getProblemDetail(Number(idStr))
+    const res = await getProblemDetail(idStr)
     problem.value = res
-    form.problemId = Number(res.problemId)
+    form.problemId = res.problemId
     // 加载详情后初始化缓存
     initCodeCache(form.problemId)
   } catch (error) {

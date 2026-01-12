@@ -183,7 +183,7 @@ export interface UserUpdateDTO {
  * 题目查询请求 DTO (对应 ProblemQueryRequest.java)
  */
 export interface ProblemQueryRequest extends PageRequest {
-  problemId?: number;     // 题目ID（精确搜索）
+  problemId?: string;     // 题目ID（精确搜索）
   keyword?: string;       // 标题/内容关键词（模糊搜索）
   difficulty?: DifficultyEnum;  // 难度（精确搜索：1-简单 2-中等 3-困难）
   tags?: string[];        // 标签
@@ -193,7 +193,7 @@ export interface ProblemQueryRequest extends PageRequest {
  * 题目添加/更新 DTO (对应 ProblemAddDTO.java)
  */
 export interface ProblemAddDTO {
-  problemId?: number;     // 题目ID（更新时必填）
+  problemId?: string;     // 题目ID（更新时必填）
   title: string;          // 题目标题（必填）
   difficulty: DifficultyEnum;  // 难度（必填）：1-简单 2-中等 3-困难
   description: string;    // 题目描述（必填）
@@ -206,7 +206,7 @@ export interface ProblemAddDTO {
   sampleOutput?: string;  // 样例输出
   hint?: string;          // 提示
   source?: string;        // 来源
-  tagIds?: number[];      // 关联的标签ID列表
+  tagIds?: string[];      // 关联的标签ID列表
   testCases?: TestCaseDTO[];  // 测试用例列表
 }
 
@@ -214,10 +214,10 @@ export interface ProblemAddDTO {
  * 题目提交 DTO (对应 ProblemSubmitDTO.java)
  */
 export interface ProblemSubmitDTO {
-  problemId: number;      // 题目ID（必填）
+  problemId: string;      // 题目ID（必填）
   language: LanguageEnum;  // 编程语言（必填）：Java/C++/Python
   code: string;           // 代码（必填）
-  contestId?: number;     // 竞赛ID（可选，平时做题为0或null）
+  contestId?: string;     // 竞赛ID（可选，平时做题为0或null）
 }
 
 /**
@@ -232,7 +232,7 @@ export interface TestCaseDTO {
  * 比赛添加/更新 DTO (对应 ContestAddDTO.java)
  */
 export interface ContestAddDTO {
-  contestId?: number;     // 比赛ID（修改时必填）
+  contestId?: string;     // 比赛ID（修改时必填）
   title: string;          // 比赛标题（必填）
   description?: string;   // 比赛描述
   startTime: string;      // 开始时间（必填）ISO 8601格式
@@ -243,8 +243,8 @@ export interface ContestAddDTO {
  * 比赛题目关联 DTO (对应 ContestProblemAddDTO.java)
  */
 export interface ContestProblemAddDTO {
-  contestId: number;      // 比赛ID（必填）
-  problemId: number;      // 题目ID（必填）
+  contestId: string;      // 比赛ID（必填）
+  problemId: string;      // 题目ID（必填）
   displayId: string;      // 展示序号（必填）：例如 A, B, C
 }
 
@@ -258,15 +258,15 @@ export interface ContestProblemAddDTO {
 export interface BaseEntity {
   createTime?: string;    // 创建时间
   updateTime?: string;    // 更新时间
-  createBy?: number;      // 创建者
-  updateBy?: number;      // 更新者
+  createBy?: string;      // 创建者（雪花算法ID）
+  updateBy?: string;      // 更新者（雪花算法ID）
 }
 
 /**
  * 用户实体 (对应 UserEntity.java)
  */
 export interface UserEntity extends BaseEntity {
-  userId: number;         // 主键ID（雪花算法）
+  userId: string;         // 主键ID（雪花算法）
   userAccount: string;    // 用户账号
   password: string;       // 密码
   nickName: string;       // 昵称
@@ -285,7 +285,7 @@ export interface UserEntity extends BaseEntity {
  * 题目实体 (对应 ProblemEntity.java)
  */
 export interface ProblemEntity extends BaseEntity {
-  problemId: number;           // 主键ID
+  problemId: string;           // 主键ID（雪花算法）
   title: string;               // 题目标题
   difficulty: DifficultyEnum;  // 难度：1-简单 2-中等 3-困难
   submitNum: number;           // 提交数
@@ -308,10 +308,10 @@ export interface ProblemEntity extends BaseEntity {
  * 题目提交记录实体 (对应 ProblemSubmitRecordEntity.java)
  */
 export interface ProblemSubmitRecordEntity extends BaseEntity {
-  submitId: number;            // 主键ID
-  problemId: number;           // 题目ID
-  contestId: number;           // 竞赛ID
-  userId: number;              // 用户ID
+  submitId: string;            // 主键ID（雪花算法）
+  problemId: string;           // 题目ID
+  contestId: string;           // 竞赛ID
+  userId: string;              // 用户ID
   code: string;                // 用户提交的代码
   language: LanguageEnum;      // 用户选择的编程语言
   status: SubmitStatusEnum;    // 判题状态（对应 ProblemStatusEnum）
@@ -327,7 +327,7 @@ export interface ProblemSubmitRecordEntity extends BaseEntity {
  * 题目标签实体 (对应 ProblemTagEntity.java)
  */
 export interface ProblemTagEntity {
-  tagId: number;               // 主键ID
+  tagId: string;               // 主键ID（雪花算法）
   tagName: string;             // 标签名称
   tagColor: string;            // 标签颜色
 }
@@ -336,17 +336,17 @@ export interface ProblemTagEntity {
  * 题目标签关联实体 (对应 ProblemTagRelationEntity.java)
  */
 export interface ProblemTagRelationEntity {
-  id: number;                  // 主键ID（自增）
-  problemId: number;           // 题目ID
-  tagId: number;               // 标签ID
+  id: string;                  // 主键ID（自增）
+  problemId: string;           // 题目ID
+  tagId: string;               // 标签ID
 }
 
 /**
  * 测试用例实体 (对应 TestCaseEntity.java)
  */
 export interface TestCaseEntity {
-  caseId: number;              // 主键ID
-  problemId: number;           // 题目ID
+  caseId: string;              // 主键ID（雪花算法）
+  problemId: string;           // 题目ID
   input: string;               // 输入数据
   output: string;              // 期望输出
 }
@@ -355,7 +355,7 @@ export interface TestCaseEntity {
  * 比赛实体 (对应 ContestEntity.java)
  */
 export interface ContestEntity extends BaseEntity {
-  contestId: number;           // 主键ID
+  contestId: string;           // 主键ID（雪花算法）
   title: string;               // 竞赛标题
   description: string;         // 竞赛描述
   status: ContestStatusEnum;   // 状态：0-未开始 1-进行中 2-已结束
@@ -368,9 +368,9 @@ export interface ContestEntity extends BaseEntity {
  * 比赛题目关联实体 (对应 ContestProblemEntity.java)
  */
 export interface ContestProblemEntity {
-  id: number;                  // 主键ID
-  contestId: number;           // 竞赛ID
-  problemId: number;           // 题目ID
+  id: string;                  // 主键ID（自增）
+  contestId: string;           // 竞赛ID
+  problemId: string;           // 题目ID
   displayId: string;           // 竞赛中的展示ID，如 A, B, C...
 }
 
@@ -378,9 +378,9 @@ export interface ContestProblemEntity {
  * 比赛报名实体 (对应 ContestRegistrationEntity.java)
  */
 export interface ContestRegistrationEntity {
-  id: number;                  // 主键ID（自增）
-  contestId: number;           // 竞赛ID
-  userId: number;              // 用户ID
+  id: string;                  // 主键ID（自增）
+  contestId: string;           // 竞赛ID
+  userId: string;              // 用户ID
   createTime: string;          // 创建时间（自动填充）
 }
 
@@ -400,7 +400,7 @@ export interface UserLoginVO {
  * 题目标签 VO (对应 ProblemTagVO.java)
  */
 export interface ProblemTagVO {
-  tagId: number;               // 标签ID
+  tagId: string;               // 标签ID（雪花算法）
   tagName: string;             // 标签名称
   tagColor: string;            // 标签颜色
 }
@@ -409,7 +409,7 @@ export interface ProblemTagVO {
  * 题目基础信息 VO (对应 ProblemBasicInfoDTO.java)
  */
 export interface ProblemBasicInfoDTO {
-  problemId: number;           // 题目ID
+  problemId: string;           // 题目ID（雪花算法）
   title: string;               // 题目标题
   difficulty: DifficultyEnum;  // 难度
   timeLimit: number;           // 时间限制
@@ -420,7 +420,7 @@ export interface ProblemBasicInfoDTO {
  * 题目列表 VO (对应 ProblemVO.java)
  */
 export interface ProblemVO {
-  problemId: number;           // 题目ID（使用 ToStringSerializer 防止前端精度丢失）
+  problemId: string;           // 题目ID（使用 ToStringSerializer 防止前端精度丢失）
   title: string;               // 题目标题
   difficulty: DifficultyEnum;  // 题目难度：1-简单 2-中等 3-困难
   tags: ProblemTagVO[];        // 标签列表
@@ -451,10 +451,10 @@ export interface ProblemDetailVO extends ProblemVO {
  * 提交记录 VO (对应 SubmitRecordVO.java)
  */
 export interface SubmitRecordVO extends BaseEntity {
-  submitId: number;            // 提交记录ID
-  problemId: number;           // 题目ID
-  contestId: number;           // 比赛ID
-  userId: number;              // 用户ID
+  submitId: string;            // 提交记录ID（雪花算法）
+  problemId: string;           // 题目ID
+  contestId: string;           // 比赛ID
+  userId: string;              // 用户ID
   code: string;                // 提交代码（非本人查看时需脱敏）
   language: LanguageEnum;      // 用户选择的编程语言
   status: SubmitStatusEnum;    // 判题状态
@@ -470,7 +470,7 @@ export interface SubmitRecordVO extends BaseEntity {
  * 比赛列表 VO (对应 ContestVO.java)
  */
 export interface ContestVO extends BaseEntity {
-  contestId: number;           // 竞赛ID
+  contestId: string;           // 竞赛ID
   title: string;               // 竞赛标题
   description: string;         // 竞赛描述
   status: ContestStatusEnum;   // 状态：0-未开始 1-进行中 2-已结束（VO层动态计算）
@@ -478,13 +478,14 @@ export interface ContestVO extends BaseEntity {
   startTime: string;           // 开始时间
   endTime: string;             // 结束时间
   duration: string;            // 持续时间（例如：2小时30分）
+  registered?: boolean; 
 }
 
 /**
  * 用户基础信息 VO (对应 UserBasicInfoDTO.java)
  */
 export interface UserBasicInfoDTO {
-  id: number;                  // 用户ID
+  id: string;                  // 用户ID（雪花算法）
   nickname: string;            // 用户昵称
   avatar: string;              // 用户头像
 }
@@ -494,7 +495,7 @@ export interface UserBasicInfoDTO {
  * 用于判题服务回写判题结果
  */
 export interface ProblemSubmitUpdateDTO {
-  submitId: number;            // 提交ID
+  submitId: string;            // 提交ID（雪花算法）
   status: SubmitStatusEnum;    // 判题状态（对应 SubmitStatusEnum，通常回写时都是 30-SUCCEED）
   judgeResult: JudgeResultEnum; // 判题结果（对应 JudgeResultEnum：AC/WA/TLE...）
   timeCost: number;            // 耗时ms
@@ -533,8 +534,8 @@ export namespace ProblemAPI {
  */
 export namespace SubmissionAPI {
   type ListRequest = PageRequest & {
-    problemId?: number;
-    userId?: number;
+    problemId?: string;
+    userId?: string;
   };
   type ListResponse = PageResult<SubmitRecordVO>;
   type DetailResponse = SubmitRecordVO;
@@ -557,9 +558,40 @@ export namespace ContestAPI {
  * 通常包含用户信息和刷题数量
  */
 export interface RankItemVO {
-  userId: number;       // 用户ID
+  userId: string;       // 用户ID（雪花算法）
   nickname: string;     // 昵称
   avatar: string;       // 头像地址
   acceptedCount: number;  // 通过题目数 (或者叫 score)
   rank?: number;        // 排名 (前端计算或后端返回)
+}
+
+// ✅ 新增：竞赛查询请求 DTO (对应 ContestQueryRequest.java)
+export interface ContestQueryRequest extends PageRequest {
+  keyword?: string;       // 关键词搜索(标题)
+  status?: number;        // 状态筛选：0-未开始 1-进行中 2-已结束
+}
+
+/**
+ * 比赛题目 VO (对应 ContestProblemVO.java)
+ */
+export interface ContestProblemVO {
+  id: string;           // 关联ID
+  contestId: string;    // 比赛ID
+  problemId: string;    // 题目ID
+  displayId: string;    // 展示序号 A, B, C
+  title: string;        // 题目标题
+  difficulty: number;   // 难度
+}
+
+/**
+ * 比赛排行榜 VO (对应 ContestRankVO.java)
+ */
+export interface ContestRankVO {
+  userId: string;
+  nickname: string;
+  avatar: string;
+  rank: number;         // 排名
+  totalScore: number;   // 总分
+  // 题目得分详情: key是problemId, value是得分
+  problemScores: Record<string, number>; 
 }
