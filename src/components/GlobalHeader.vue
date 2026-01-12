@@ -55,7 +55,6 @@ const handleLogout = () => {
   router.push('/login')
 }
 
-// ✅ 修复：增强的头像获取
 const userAvatar = computed(() => {
   const info = userStore.userInfo as any
   if (!info) return DEFAULT_AVATAR
@@ -63,22 +62,42 @@ const userAvatar = computed(() => {
   return user.avatar || DEFAULT_AVATAR
 })
 
-// ✅ 修复：增强的昵称获取逻辑
 const nickName = computed(() => {
   const info = userStore.userInfo as any
   if (!info) return '未登录'
-  
-  // 兼容逻辑：如果 userInfo 里有 user 字段则取 user，否则 userInfo 本身就是 user
   const user = info.user || info
-  
-  // 依次尝试获取昵称 -> 用户名 -> 账号
-  return user.nickName || 
-         user.nickname || 
-         user.userName || 
-         '用户'
+  return user.nickName || user.nickname || user.userName || '用户'
 })
 
 const isLogin = computed(() => !!userStore.token)
+
+// ================= 搜索逻辑开始 =================
+const searchKeyword = ref('')
+const searchType = ref('problem') // 默认搜题目
+
+// 监听路由变化，自动切换搜索类型（优化体验）
+// 如果用户在比赛列表页，搜索框默认应该搜比赛
+import { watch } from 'vue'
+watch(() => route.path, (newPath) => {
+  if (newPath.startsWith('/contest')) {
+    searchType.value = 'contest'
+  } else {
+    searchType.value = 'problem'
+  }
+})
+
+const handleGlobalSearch = () => {
+  if (!searchKeyword.value.trim()) return
+  
+  // 跳转到对应页面，带上 keyword 参数
+  router.push({
+    path: searchType.value === 'problem' ? '/problem' : '/contest',
+    query: {
+      keyword: searchKeyword.value
+    }
+  })
+}
+// ================= 搜索逻辑结束 =================
 </script>
 
 <template>
@@ -109,10 +128,21 @@ const isLogin = computed(() => !!userStore.token)
 
       <div class="header-center">
         <el-input
-          placeholder="搜索题目、比赛或用户..."
+          v-model="searchKeyword"
+          placeholder="搜索..."
           class="search-input"
-          :prefix-icon="Search"
-        />
+          @keyup.enter="handleGlobalSearch"
+        >
+          <template #prepend>
+            <el-select v-model="searchType" style="width: 85px">
+              <el-option label="题目" value="problem" />
+              <el-option label="竞赛" value="contest" />
+            </el-select>
+          </template>
+          <template #append>
+            <el-button :icon="Search" @click="handleGlobalSearch" />
+          </template>
+        </el-input>
       </div>
 
       <div class="header-right">
@@ -121,7 +151,6 @@ const isLogin = computed(() => !!userStore.token)
             <div class="user-profile">
               <el-avatar :size="36" :src="userAvatar" class="avatar" />
             </div>
-            
             <template #dropdown>
               <el-dropdown-menu>
                 <div class="dropdown-user-info">
@@ -135,7 +164,6 @@ const isLogin = computed(() => !!userStore.token)
             </template>
           </el-dropdown>
         </template>
-        
         <template v-else>
           <el-button type="primary" round @click="router.push('/login')">登录 / 注册</el-button>
         </template>
@@ -164,10 +192,25 @@ const isLogin = computed(() => !!userStore.token)
 :deep(.el-menu-item) { font-size: 15px; color: #606266; height: 60px; line-height: 60px; }
 :deep(.el-menu-item.is-active) { border-bottom: 2px solid #409eff; font-weight: 600; }
 :deep(.el-menu-item:hover) { background-color: rgba(64, 158, 255, 0.05) !important; color: #409eff; }
-.header-center { flex: 1; display: flex; justify-content: center; max-width: 400px; margin: 0 20px; }
+
+/* 搜索框样式优化 */
+.header-center { flex: 1; display: flex; justify-content: center; max-width: 500px; margin: 0 20px; }
 .search-input { width: 100%; }
-:deep(.el-input__wrapper) { border-radius: 20px; background-color: #f5f7fa; box-shadow: none; }
-:deep(.el-input__wrapper.is-focus) { background-color: #fff; box-shadow: 0 0 0 1px #409eff inset; }
+
+/* 调整 Element Plus 复合输入框的圆角和边框 */
+:deep(.el-input-group__prepend) {
+  background-color: #fff;
+  padding: 0 10px;
+}
+:deep(.el-input-group__append) {
+  background-color: #409eff;
+  color: white;
+  border-color: #409eff;
+}
+:deep(.el-input-group__append:hover) {
+  background-color: #66b1ff;
+}
+
 .header-right { display: flex; align-items: center; min-width: 60px; justify-content: flex-end; }
 .user-profile { display: flex; align-items: center; cursor: pointer; padding: 2px; border-radius: 50%; transition: all 0.3s; }
 .user-profile:hover { box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.15); }

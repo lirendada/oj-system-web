@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { getProblemList, getRankList } from '@/api/problem'
 import { Search, Refresh, Trophy } from '@element-plus/icons-vue'
 import { 
@@ -15,6 +15,7 @@ const router = useRouter()
 const loading = ref(false)
 const tableData = ref<ProblemVO[]>([])
 const total = ref(0)
+const route = useRoute()
 
 // ✅ 新增：默认头像常量
 const DEFAULT_AVATAR = 'https://p.ssl.qhimg.com/sdm/480_480_/t01520a1bd1802ae864.jpg'
@@ -125,8 +126,22 @@ const handleSortChange = ({ prop, order }: { prop: string, order: string }) => {
 }
 
 onMounted(() => {
+  // 1. 检查 URL 是否有 keyword 参数
+  if (route.query.keyword) {
+    queryParams.keyword = route.query.keyword as string
+  }
+  
+  // 2. 加载数据
   loadData()
   loadRankData()
+})
+
+// 可选：监听路由参数变化（如果用户在题目列表页再次搜索，URL变了但组件未重新挂载）
+import { watch } from 'vue'
+watch(() => route.query.keyword, (newVal) => {
+  queryParams.keyword = (newVal as string) || ''
+  queryParams.current = 1 // 重置到第一页
+  loadData()
 })
 </script>
 

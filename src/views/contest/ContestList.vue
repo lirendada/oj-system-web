@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { getContestList, registerContest } from '@/api/contest'
 import { Search, Trophy, Timer, Calendar, Clock } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -15,6 +15,7 @@ import {
 } from '@/types/global'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const loading = ref(false)
 const contestList = ref<ContestVO[]>([])
@@ -112,7 +113,19 @@ const getCardClass = (status: number) => {
 }
 
 onMounted(() => {
-  loadData()
+  // 1. 读取 URL 上的搜索参数
+  if (route.query.keyword) {
+    queryParams.keyword = route.query.keyword as string
+  }
+  // 2. 必须调用 loadData()，而不是 getContestList()
+  // loadData 内部写了 getContestList(queryParams)，这样才会带上参数
+  loadData() 
+})
+
+watch(() => route.query.keyword, (newVal) => {
+  queryParams.keyword = (newVal as string) || ''
+  queryParams.current = 1 // 搜索时重置回第一页
+  loadData() // 同样调用 loadData
 })
 </script>
 
