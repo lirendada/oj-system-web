@@ -29,8 +29,8 @@ const queryParams = reactive<ProblemQueryRequest>({
   pageSize: 10,
   keyword: '',
   difficulty: undefined,
-  sortField: undefined, // ✅ 新增
-  sortOrder: undefined  // ✅ 新增
+  sortField: undefined, 
+  sortOrder: undefined 
 })
 
 const loadData = async () => {
@@ -38,7 +38,9 @@ const loadData = async () => {
   try {
     const res = await getProblemList(queryParams)
     tableData.value = res.records
-    total.value = res.total
+    // ✅ 修复：后端返回的 total 是 String 类型 (Jackson配置导致)，需要强制转为 Number
+    // 否则 Element Plus 分页组件无法正确计算总页数，导致看起来只有一页
+    total.value = Number(res.total)
   } catch (error) {
     console.error(error)
   } finally {
@@ -114,8 +116,6 @@ const handleSortChange = ({ prop, order }: { prop: string, order: string }) => {
     queryParams.sortOrder = undefined
   } else {
     // 映射字段名（如果前端 prop 和后端数据库字段不一致，可以在这里转换）
-    // 目前假设后端支持 'difficulty' 和 'rate' (或 'acceptance_rate') 排序
-    // 注意：'rate' 排序通常需要后端 SQL 支持计算列排序
     queryParams.sortField = prop
     queryParams.sortOrder = order === 'ascending' ? 'ascend' : 'descend'
   }
@@ -163,7 +163,13 @@ onMounted(() => {
         </el-card>
 
         <el-card shadow="never" class="list-card table-card">
-          <el-table :data="tableData" v-loading="loading" stripe style="width: 100%">
+          <el-table 
+            :data="tableData" 
+            v-loading="loading" 
+            stripe 
+            style="width: 100%"
+            @sort-change="handleSortChange" 
+          >
             <el-table-column prop="problemId" label="ID" width="180" />
             
             <el-table-column label="题目名称" min-width="200">
@@ -187,7 +193,7 @@ onMounted(() => {
               </template>
             </el-table-column>
 
-            <el-table-column label="难度" width="100">
+            <el-table-column label="难度" width="100" prop="difficulty" sortable="custom">
               <template #default="{ row }">
                 <el-tag :type="getDifficultyColor(row.difficulty)" effect="dark" round size="small">
                   {{ DifficultyText[row.difficulty as DifficultyEnum] || '未知' }}
@@ -195,7 +201,7 @@ onMounted(() => {
               </template>
             </el-table-column>
             
-            <el-table-column label="通过率" width="120">
+            <el-table-column label="通过率" width="120" prop="rate" sortable="custom">
               <template #default="{ row }">
                 <span style="color: #606266;">
                   {{ row.submitNum > 0 ? ((row.acceptedNum / row.submitNum) * 100).toFixed(1) + '%' : '0.0%' }}

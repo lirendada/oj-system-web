@@ -81,7 +81,7 @@ liren-oj-web/
 | `/problem` | ProblemList | 题目列表页 |
 | `/problem/detail/:id` | ProblemDetail | 题目详情页（动态参数） |
 | `/contest` | ContestList | 竞赛列表页 |
-| `/contest/:id` | ContestDetail | 竞赛详情页 |
+| `/contest/:id` | ContestDetail | 竞赛详情页（动态参数） |
 | `/login` | LoginView | 用户登录页 |
 
 ### 2.2 路由特点
@@ -268,7 +268,7 @@ typeMap: {
 ```typescript
 // 题目数据
 problemDetail: {
-  problemId: number,
+  problemId: string,     // 雪花算法ID
   title: string,
   difficulty: number,
   description: string,
@@ -284,14 +284,14 @@ problemDetail: {
 
 // 提交表单
 submitForm: {
-  problemId: number,
+  problemId: string,     // 雪花算法ID
   language: string,
   code: string
 }
 
 // 判题结果
 judgeResult: {
-  submitId: number,
+  submitId: string,      // 雪花算法ID
   judgeResult: number,
   timeCost: number,
   memoryCost: number,
@@ -525,10 +525,10 @@ getRankList(type: 'daily' | 'weekly' | 'monthly' | 'total')
 
 // 提交代码
 submitProblem(data: {
-  problemId: number;
+  problemId: string;     // 雪花算法ID
   language: LanguageEnum;
   code: string;
-  contestId?: number;
+  contestId?: string;    // 雪花算法ID（可选）
 })
 ```
 
@@ -556,7 +556,7 @@ type SubmitResponse = string  // 返回 submitId
 
 // 排行榜响应
 interface RankItemVO {
-  userId: number;
+  userId: string;         // 雪花算法ID
   nickname: string;
   avatar: string;
   acceptedCount: number;
@@ -708,7 +708,7 @@ interface UserLoginVO {
 }
 
 interface UserEntity {
-  userId: number;
+  userId: string;         // 雪花算法ID
   userAccount: string;
   nickName: string;
   avatar: string;
@@ -841,6 +841,14 @@ const DEFAULT_AVATAR = 'https://p.ssl.qhimg.com/sdm/480_480_/t01520a1bd1802ae864
 
 ### 7.1 类型定义文件：src/types/global.ts
 
+**重要说明：雪花算法 ID 处理**
+
+由于后端使用雪花算法生成 ID（Long 类型），为了防止 JavaScript 中的数字精度丢失问题：
+- 所有 ID 字段（userId, problemId, contestId, submitId, tagId 等）在后端序列化为 **String** 类型
+- 前端所有 ID 字段类型定义为 **string**，避免精度丢失
+- 路由参数直接使用 `route.params.id as string`，无需 Number() 转换
+- 前端不再对 ID 进行任何数值运算或类型转换
+
 **类型组织结构：**
 
 #### 7.1.1 通用类型
@@ -848,6 +856,7 @@ const DEFAULT_AVATAR = 'https://p.ssl.qhimg.com/sdm/480_480_/t01520a1bd1802ae864
 - `PageRequest`：分页请求参数
 - `PageResult<T>`：分页响应结果
 - `BaseEntity`：基础实体（createTime, updateTime, createBy, updateBy）
+  - `createBy` 和 `updateBy` 为 **string** 类型（雪花算法 ID）
 
 #### 7.1.2 枚举类型
 
