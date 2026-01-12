@@ -16,6 +16,9 @@ const loading = ref(false)
 const tableData = ref<ProblemVO[]>([])
 const total = ref(0)
 
+// ✅ 新增：默认头像常量
+const DEFAULT_AVATAR = 'https://p.ssl.qhimg.com/sdm/480_480_/t01520a1bd1802ae864.jpg'
+
 // 排行榜相关状态
 const rankLoading = ref(false)
 const rankList = ref<RankItemVO[]>([])
@@ -87,6 +90,17 @@ const getRankIndexColor = (index: number) => {
   if (index === 1) return '#e6a23c' // 银
   if (index === 2) return '#409eff' // 铜
   return '#909399'
+}
+
+// 动态获取文案
+const getRankCountText = () => {
+  switch (activeRankTab.value) {
+    case 'day': return '今日通过'
+    case 'week': return '本周通过'
+    case 'month': return '本月通过'
+    case 'total': return '累计通过'
+    default: return '已通过'
+  }
 }
 
 onMounted(() => {
@@ -215,12 +229,12 @@ onMounted(() => {
                 {{ index + 1 }}
               </div>
               <div class="rank-user">
-                <el-avatar :size="32" :src="item.avatar" class="user-avatar">
+                <el-avatar :size="32" :src="item.avatar || DEFAULT_AVATAR" class="user-avatar">
                    {{ item.nickname?.charAt(0)?.toUpperCase() }}
                 </el-avatar>
                 <div class="user-info">
                    <div class="nickname" :title="item.nickname">{{ item.nickname }}</div>
-                   <div class="desc">已通过 <span class="ac-num">{{ item.acceptedCount ?? item.acceptedNum ?? 0 }}</span> 题</div>
+                   <div class="desc">{{ getRankCountText() }} <span class="ac-num">{{ item.acceptedCount ?? 0 }}</span> 题</div>
                 </div>
               </div>
             </div>
@@ -238,19 +252,18 @@ onMounted(() => {
   padding: 0 20px; 
 }
 
-/* ✅ 卡片通用样式：圆角优化 */
 .list-card {
-  border-radius: 12px; /* 更大的圆角 */
+  border-radius: 12px; 
   border: 1px solid #ebeef5;
   transition: all 0.3s;
 }
 .list-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); /* 悬浮时显示柔和阴影 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); 
 }
 
 .search-card { 
   margin-bottom: 20px; 
-  padding: 8px 0; /* 调整内边距 */
+  padding: 8px 0; 
 }
 
 .table-card { 
@@ -271,7 +284,6 @@ onMounted(() => {
 .rank-header {
   color: #303133;
 }
-/* 去掉卡片 header 默认下划线，改用更轻的 */
 :deep(.el-card__header) {
   border-bottom: 1px solid #f2f6fc;
   padding: 15px 20px;
@@ -299,12 +311,12 @@ onMounted(() => {
 .rank-item {
   display: flex;
   align-items: center;
-  padding: 14px 8px; /* 增加间距 */
-  border-radius: 8px; /* 列表项也加点圆角 */
+  padding: 14px 8px; 
+  border-radius: 8px; 
   transition: background-color 0.2s;
 }
 .rank-item:hover {
-  background-color: #f9fafe; /* 鼠标悬浮背景 */
+  background-color: #f9fafe; 
 }
 
 .rank-index {
@@ -312,7 +324,7 @@ onMounted(() => {
   text-align: center;
   font-size: 18px;
   margin-right: 8px;
-  font-family: 'Bahnschrift', 'Impact', sans-serif; /* 数字字体 */
+  font-family: 'Bahnschrift', 'Impact', sans-serif; 
 }
 
 .rank-user {
@@ -323,7 +335,7 @@ onMounted(() => {
 }
 
 .user-avatar {
-  background: linear-gradient(135deg, #a0cfff 0%, #409eff 100%); /* 头像渐变背景 */
+  background: linear-gradient(135deg, #a0cfff 0%, #409eff 100%); 
   flex-shrink: 0;
   margin-right: 12px;
   font-size: 14px;
