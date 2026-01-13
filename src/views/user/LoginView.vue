@@ -2,7 +2,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { login, getInfo } from '@/api/user'
+import { userLogin, getInfo } from '@/api/user'
 import { User, Lock, ArrowRight, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
@@ -28,7 +28,7 @@ const handleLogin = async () => {
   loading.value = true
   try {
     // 1. 登录
-    const res = await login(form)
+    const res = await userLogin(form)
     const token = res.data.token 
     if (!token) {
         throw new Error('Token 获取失败')
@@ -84,8 +84,8 @@ const handleLogin = async () => {
         </div>
 
         <div class="actions">
-          <el-checkbox label="记住我" class="remember-checkbox" />
-          <el-link type="primary" :underline="false" class="forgot-link">忘记密码?</el-link>
+          <!-- <el-checkbox label="记住我" class="remember-checkbox" /> -->
+          <el-link type="primary" :underline="false" class="forgot-link" @click="$router.push('/forget-password')">忘记密码?</el-link>
         </div>
 
         <el-button 
@@ -226,7 +226,7 @@ const handleLogin = async () => {
 
 .actions {
   display: flex;
-  justify-content: space-between;
+  justify-content:end;
   align-items: center;
   margin-bottom: 25px;
   padding: 0 2px;

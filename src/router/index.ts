@@ -50,7 +50,11 @@ const router = createRouter({
       component: () => import("@/views/user/RegisterView.vue"),
       meta: { transition: 'rocket' } 
     },
-    
+    {
+      path: '/forget-password',
+      name: 'ForgetPassword',
+      component: () => import("@/views/user/ForgetPasswordView.vue")
+    },
   ]
 })
 
