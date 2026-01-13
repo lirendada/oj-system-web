@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref, reactive, watch, onBeforeUnmount, computed } from 'vue' // ✅ 新增 computed
+import { onMounted, ref, reactive, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { getProblemDetail, submitProblem, getSubmitResult } from '@/api/problem'
-import { useUserStore } from '@/stores/user' // ✅ 引入 userStore
+import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import CodeEditor from '@/components/CodeEditor/index.vue'
 import MdViewer from '@/components/MdViewer/index.vue'
@@ -31,8 +31,12 @@ import {
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 
+// ... (Script 逻辑保持原样，完全不用动) ...
+// 注意：确保 CodeEditor 组件本身支持 height="100%"
+// 如果 CodeEditor 内部有固定高度，需要改为 CSS flex 自适应
+
 const route = useRoute()
-const userStore = useUserStore() // ✅ 初始化 store
+const userStore = useUserStore()
 const problem = ref<ProblemDetailVO>()
 const loading = ref(false)
 const submitting = ref(false)
@@ -96,40 +100,34 @@ if __name__ == "__main__":
 
 const codeCache = reactive<Record<string, string>>({})
 
-// ✅ 新增：获取带用户隔离的 Storage Key
 const getStorageKey = (problemId: string) => {
   const userId = userStore.userInfo?.user?.userId || 'guest'
   return `oj_code_${userId}_${problemId}`
 }
 
 const initCodeCache = (problemId: string) => {
-  // 1. 先重置为默认模板，防止之前的缓存残留
   languageOptions.forEach(opt => {
     codeCache[opt.value] = opt.template
   })
 
-  // 2. 尝试读取当前用户的缓存
-  const storageKey = getStorageKey(problemId) // ✅ 使用新 Key
+  const storageKey = getStorageKey(problemId)
   const savedCache = localStorage.getItem(storageKey)
 
   if (savedCache) {
     try {
       const parsed = JSON.parse(savedCache)
-      // 这里的 Object.assign 会覆盖掉默认模板
       Object.assign(codeCache, parsed)
     } catch (e) {
       console.error('读取代码缓存失败', e)
     }
   }
 
-  // 3. 设置当前编辑器代码
   form.code = codeCache[form.language] || ''
 }
 
 const saveToLocalStorage = () => {
   if (!form.problemId) return
   codeCache[form.language] = form.code
-  // ✅ 使用新 Key 保存
   localStorage.setItem(getStorageKey(form.problemId), JSON.stringify(codeCache))
 }
 
@@ -143,7 +141,6 @@ watch(() => form.language, (newLang, oldLang) => {
 
 watch(() => form.code, (newCode) => {
   codeCache[form.language] = newCode
-  // 这里可以加一个防抖，不过本地存储性能通常够用，暂时保持实时
 })
 
 const handleResetCode = () => {
@@ -174,7 +171,6 @@ const loadDetail = async () => {
     const res = await getProblemDetail(idStr)
     problem.value = res
     form.problemId = res.problemId
-    // 加载详情后初始化缓存
     initCodeCache(form.problemId)
   } catch (error) {
     console.error(error)
@@ -186,8 +182,6 @@ const loadDetail = async () => {
 const handleSubmit = async () => {
   if (!userStore.token) {
     ElMessage.warning('请先登录后再提交代码')
-    // 可选：跳转去登录
-    // router.push('/login')
     return
   }
   
@@ -252,9 +246,13 @@ onBeforeUnmount(() => {
     <splitpanes class="default-theme" style="height: 100%">
       
       <pane min-size="20" :size="40">
-        <div class="panel-content">
-          <el-card class="box-card problem-content" v-loading="loading">
-            <div class="scroll-content" v-if="problem">
+        <div class="panel-content left-panel">
+          <div class="pane-header">
+            <span class="pane-title"><el-icon><InfoFilled /></el-icon> 题目描述</span>
+          </div>
+          
+          <div class="pane-body" v-loading="loading">
+             <div class="scroll-content" v-if="problem">
               <div class="problem-header-block">
                 <h2>{{ problem?.problemId }}. {{ problem?.title }}</h2>
                 <div class="tags">
@@ -305,76 +303,75 @@ onBeforeUnmount(() => {
                 </ul>
               </div>
             </div>
-          </el-card>
+          </div>
         </div>
       </pane>
 
       <pane min-size="20" :size="60">
-        <div class="panel-content">
-          <el-card class="box-card editor-card">
-            <template #header>
-              <div class="editor-header">
-                <div class="header-left">
-                  <el-icon :size="16" color="#409eff"><EditPen /></el-icon>
-                  <span class="header-title">代码</span>
-                </div>
-                
-                <div class="actions">
-                  <el-select 
-                    v-model="form.language" 
-                    placeholder="语言" 
-                    size="small"
-                    style="width: 100px; margin-right: 10px;"
-                  >
-                    <el-option v-for="opt in languageOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-                  </el-select>
-
-                  <el-tooltip content="重置代码" placement="bottom">
-                    <el-button 
-                      :icon="RefreshRight" 
-                      circle 
-                      size="small"
-                      @click="handleResetCode" 
-                    />
-                  </el-tooltip>
-
-                  <el-popover placement="bottom" title="设置" :width="200" trigger="click">
-                    <template #reference>
-                      <el-button :icon="Setting" circle size="small" style="margin-left: 8px" />
-                    </template>
-                    <el-form label-position="left" label-width="50px" size="small">
-                      <el-form-item label="主题">
-                        <el-select v-model="editorConfig.theme">
-                          <el-option label="Dark" value="vs-dark" />
-                          <el-option label="Light" value="vs" />
-                        </el-select>
-                      </el-form-item>
-                      <el-form-item label="字号">
-                        <el-input-number v-model="editorConfig.fontSize" :min="12" :max="24" controls-position="right" style="width: 100%" />
-                      </el-form-item>
-                    </el-form>
-                  </el-popover>
-                  
-                  <el-button 
-                    type="success" 
-                    :loading="submitting" 
-                    size="small"
-                    @click="handleSubmit" 
-                    style="margin-left: 15px; padding: 0 15px;"
-                  >
-                    <el-icon style="margin-right: 4px"><CaretRight /></el-icon> 运行
-                  </el-button>
-                </div>
-              </div>
-            </template>
+        <div class="panel-content right-panel">
+          <div class="pane-header editor-header-bar">
+            <div class="header-left">
+                <el-icon :size="16" color="#409eff"><EditPen /></el-icon>
+                <span class="header-title">代码</span>
+            </div>
             
-            <CodeEditor 
+            <div class="actions">
+                <el-select 
+                v-model="form.language" 
+                placeholder="语言" 
+                size="small"
+                style="width: 100px; margin-right: 10px;"
+                >
+                <el-option v-for="opt in languageOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+                </el-select>
+
+                <el-tooltip content="重置代码" placement="bottom">
+                <el-button 
+                    :icon="RefreshRight" 
+                    circle 
+                    size="small"
+                    @click="handleResetCode" 
+                />
+                </el-tooltip>
+
+                <el-popover placement="bottom" title="设置" :width="200" trigger="click">
+                <template #reference>
+                    <el-button :icon="Setting" circle size="small" style="margin-left: 8px" />
+                </template>
+                <el-form label-position="left" label-width="50px" size="small">
+                    <el-form-item label="主题">
+                    <el-select v-model="editorConfig.theme">
+                        <el-option label="Dark" value="vs-dark" />
+                        <el-option label="Light" value="vs" />
+                    </el-select>
+                    </el-form-item>
+                    <el-form-item label="字号">
+                    <el-input-number v-model="editorConfig.fontSize" :min="12" :max="24" controls-position="right" style="width: 100%" />
+                    </el-form-item>
+                </el-form>
+                </el-popover>
+                
+                <el-button 
+                type="success" 
+                :loading="submitting" 
+                size="small"
+                @click="handleSubmit" 
+                style="margin-left: 15px; padding: 0 15px;"
+                >
+                <el-icon style="margin-right: 4px"><CaretRight /></el-icon> 运行
+                </el-button>
+            </div>
+          </div>
+
+          <div class="pane-body no-padding">
+             <CodeEditor 
               v-model="form.code" 
               :language="form.language" 
               :theme="editorConfig.theme"
               :font-size="editorConfig.fontSize"
+              style="height: 100%;" 
             />
-          </el-card>
+          </div>
         </div>
       </pane>
     </splitpanes>
@@ -410,184 +407,365 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped>
-/* 基础容器 */
+<style scoped lang="scss">
+/* 引入一些高级灰变量 */
+$bg-color: #ffffff;
+$bg-secondary: #fafafa;
+$border-color: #f0f0f0;
+$text-primary: #262626;
+$text-secondary: #595959;
+$text-tertiary: #8c8c8c;
+$primary-color: #409eff;
+$success-color: #67c23a;
+$danger-color: #f56c6c;
+
 .problem-detail-container {
-  height: calc(100vh - 80px);
-  padding: 0 20px 20px 20px;
-  overflow: hidden;
-  background-color: #f7f8fa;
+  height: 100%;
+  width: 100%;
+  background-color: $bg-color;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* 布局 */
+/* 面板通用布局 */
 .panel-content {
   height: 100%;
-  padding-bottom: 2px;
-  padding-right: 8px;
-}
-.splitpanes__pane:last-child .panel-content {
-  padding-right: 0;
-  padding-left: 8px;
-}
-
-/* 卡片样式 */
-.box-card {
-  height: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-  box-sizing: border-box;
-  background: #fff;
+  background-color: $bg-color;
 }
 
-/* 强制覆盖 Element Plus 卡片头部默认样式，实现极简工具栏 */
-:deep(.el-card__header) {
-  padding: 0 16px !important;
-  height: 44px;
-  line-height: 44px;
-  border-bottom: 1px solid #f0f0f0;
-  background-color: #fff;
-}
+.left-panel { border-right: 1px solid $border-color; }
 
-:deep(.el-card__body) {
-  flex: 1;
-  overflow: hidden;
+/* 头部 Header - 极简风格 */
+.pane-header {
+  height: 48px; /* 稍微高一点，留白 */
+  min-height: 48px;
+  padding: 0 20px;
+  border-bottom: 1px solid $border-color;
   display: flex;
-  flex-direction: column;
-  padding: 0;
-}
-
-/* 编辑器头部工具栏内部布局 */
-.editor-header {
-  display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  height: 100%;
-}
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.header-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-}
-.actions {
-  display: flex;
-  align-items: center;
+  background-color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(5px); /* 磨砂效果 */
+  
+  .pane-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: $text-secondary;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 }
 
-/* 滚动内容区 */
-.scroll-content {
+.editor-header {
+  justify-content: space-between;
+  
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+}
+
+/* 分割线 */
+.divider-v {
+  width: 1px;
+  height: 16px;
+  background-color: #e0e0e0;
+  margin: 0 4px;
+}
+
+/* 按钮微调 */
+.icon-btn {
+  color: $text-tertiary;
+  font-size: 16px;
+  &:hover { color: $primary-color; background-color: transparent; }
+}
+.run-btn {
+  font-weight: 500;
+  padding: 0 16px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 6px rgba(103, 194, 58, 0.2); /* 绿色投影 */
+  transition: all 0.2s;
+  
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(103, 194, 58, 0.3);
+  }
+  &:active { transform: translateY(0); }
+}
+
+.lang-select {
+  width: 100px;
+  :deep(.el-input__wrapper) {
+    box-shadow: none !important; /* 去除边框 */
+    background: transparent;
+    padding: 0;
+  }
+  :deep(.el-input__inner) {
+    font-weight: 500;
+    color: $text-primary;
+    text-align: right;
+  }
+}
+
+/* 内容区域 */
+.pane-body {
   flex: 1;
-  padding: 24px;
-  overflow-y: auto;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  font-size: 15px;
-  line-height: 1.75;
-  color: #262626;
+  overflow-y: overlay; /* 现代浏览器覆盖滚动条 */
+  position: relative;
+  
+  &.no-padding { overflow: hidden; }
 }
 
-/* 标题块 */
-.problem-header-block {
-  margin-bottom: 30px; 
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 20px;
+.scroll-content {
+  padding: 24px 32px; /* 增加左右留白，更像阅读模式 */
+  max-width: 900px; /* 限制最大宽度，防止大屏阅读困难 */
+  margin: 0 auto;
 }
-.problem-header-block h2 {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0 0 16px 0;
-  line-height: 1.3;
+
+/* 标题区排版 */
+.problem-title-area {
+  margin-bottom: 32px;
+  
+  .main-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0 0 12px 0;
+    line-height: 1.4;
+  }
+  
+  .meta-info {
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    
+    .meta-divider { margin: 0 12px; color: #e0e0e0; }
+  }
 }
-.tags {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
+
+/* 难度徽章 */
+.difficulty-badge {
+  font-weight: 500;
+  &.easy { color: $success-color; }
+  &.medium { color: #faad14; }
+  &.hard { color: $danger-color; }
 }
 
 /* 标签样式 */
-:deep(.el-tag--dark.el-tag--success) { --el-tag-bg-color: #00b8a3; --el-tag-border-color: #00b8a3; }
-:deep(.el-tag--dark.el-tag--warning) { --el-tag-bg-color: #ffb800; --el-tag-border-color: #ffb800; }
-:deep(.el-tag--dark.el-tag--danger) { --el-tag-bg-color: #ff2d55; --el-tag-border-color: #ff2d55; }
-:deep(.el-tag--info) { border: none; background-color: #f2f3f5; color: #3c3c43; border-radius: 12px; }
+.tags-wrapper {
+  display: flex;
+  gap: 6px;
+  
+  .tag-pill {
+    background-color: #f5f5f5;
+    color: $text-secondary;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    transition: all 0.2s;
+    cursor: default;
+    
+    &:hover { background-color: #eeeeee; }
+  }
+}
 
-/* 详情标题 */
-:deep(.scroll-content h3),
-.problem-limits h4 {
-  font-size: 16px;
+/* 正文排版优化 (Typography) */
+.typography-content {
+  color: #333;
+  line-height: 1.75;
+  font-size: 15px; /* 稍微大一点，阅读更舒服 */
+  
+  :deep(h1), :deep(h2), :deep(h3) {
+    color: $text-primary;
+    font-weight: 600;
+    margin: 24px 0 16px;
+  }
+  
+  :deep(p) { margin-bottom: 16px; }
+  
+  :deep(code) {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    background-color: rgba(0,0,0,0.04);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: #d63384; /* 代码高亮色 */
+  }
+  
+  :deep(pre) {
+    background-color: $bg-secondary;
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid $border-color;
+    overflow-x: auto;
+    margin-bottom: 20px;
+    
+    code {
+        background-color: transparent;
+        color: inherit;
+        padding: 0;
+        border-radius: 0;
+    }
+  }
+}
+
+/* 样例框样式 */
+.section-title {
+  font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
-  margin-top: 24px;
-  margin-bottom: 12px;
+  color: $text-primary;
+  margin: 24px 0 12px;
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-:deep(.scroll-content h3)::before {
-  content: '';
-  display: inline-block;
-  width: 4px;
-  height: 16px;
-  background: #409eff;
-  border-radius: 2px;
-  margin-right: 4px;
+  &:before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 14px;
+    background-color: $primary-color;
+    margin-right: 8px;
+    border-radius: 2px;
+  }
 }
 
-/* Markdown 元素 */
-:deep(.scroll-content p) { margin-bottom: 1.2em; text-align: justify; }
-:deep(.scroll-content code) { font-family: "Menlo", monospace; font-size: 0.9em; background-color: #f2f3f5; color: #262626; padding: 2px 6px; border-radius: 4px; margin: 0 2px; }
-:deep(.scroll-content pre), .sample-box { background-color: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin: 16px 0; overflow-x: auto; font-family: "Menlo", monospace; font-size: 13px; color: #262626; }
-
-/* 底部限制信息 */
-.problem-limits {
-  margin-top: 40px;
-  padding-top: 20px;
-  border-top: 1px solid #f0f0f0;
-}
-.problem-limits ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.samples-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
 }
-.problem-limits li {
-  font-size: 14px;
-  color: #595959;
+
+.sample-item {
+  background-color: #fafafa;
+  border-radius: 8px;
+  border: 1px solid $border-color;
+  overflow: hidden;
+  
+  .sample-label {
+    padding: 8px 12px;
+    font-size: 12px;
+    color: $text-tertiary;
+    border-bottom: 1px solid #f5f5f5;
+    background-color: #fcfcfc;
+  }
+  
+  .code-box {
+    padding: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: #444;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+}
+
+/* 底部 Limits */
+.limits-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px dashed $border-color;
   display: flex;
-  align-items: center;
+  gap: 24px;
+  color: $text-tertiary;
+  font-size: 13px;
+  
+  .limit-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 }
-.problem-limits li span {
-  color: #8c8c8c;
-  width: 80px;
+
+/* 拖拽条重写 (更优雅) */
+:deep(.splitpanes__splitter) { 
+    background-color: transparent; /* 透明 */
+    width: 10px; 
+    border-left: 1px solid $border-color; 
+    margin-left: -1px;
+    position: relative;
+    
+    &:hover {
+        background-color: rgba(64, 158, 255, 0.1);
+    }
+    
+    &:before { /* 拖拽手柄小圆点 */
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 4px;
+        height: 30px;
+        border-radius: 2px;
+        background-color: #dcdfe6;
+        transition: background-color 0.2s;
+    }
+    
+    &:hover:before {
+        background-color: $primary-color;
+    }
 }
 
-/* 滚动条 */
-.scroll-content::-webkit-scrollbar { width: 7px; height: 7px; }
-.scroll-content::-webkit-scrollbar-track { background: transparent; }
-.scroll-content::-webkit-scrollbar-thumb { background-color: transparent; border-radius: 4px; transition: background-color 0.3s; }
-.scroll-content:hover::-webkit-scrollbar-thumb { background-color: #d9d9d9; }
-.scroll-content::-webkit-scrollbar-thumb:hover { background-color: #bfbfbf; }
-
-/* 拖拽条 */
-:deep(.splitpanes__splitter) { background-color: transparent; width: 12px; margin: 0 -6px; border: none; cursor: col-resize; position: relative; z-index: 100; transition: all 0.2s; }
-:deep(.splitpanes__splitter)::before { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 2px; height: 24px; background-color: #409eff; border-radius: 1px; opacity: 0; transition: opacity 0.2s; }
-:deep(.splitpanes__splitter:hover)::before, :deep(.splitpanes__splitter.splitpanes__splitter--active)::before { opacity: 1; }
-:deep(.splitpanes__splitter:hover) { background-color: rgba(64, 158, 255, 0.05); }
-
-/* 结果弹窗 */
-.result-content { text-align: center; }
-.result-content h2 { margin: 10px 0 20px 0; }
-.metrics { background: #f5f7fa; padding: 15px; border-radius: 8px; display: flex; justify-content: space-around; }
-.metrics p { margin: 0; display: flex; align-items: center; gap: 8px; font-weight: 500; }
-.error-msg { margin-top: 20px; text-align: left; }
-.error-msg pre { background: #fff2f0; color: #ff4d4f; padding: 10px; border-radius: 4px; overflow: auto; max-height: 200px; }
+/* 结果弹窗优化 */
+.result-content {
+    text-align: center;
+    padding: 10px 0;
+}
+.status-icon-wrapper {
+    margin-bottom: 16px;
+    .success-icon { font-size: 64px; color: $success-color; filter: drop-shadow(0 4px 12px rgba(103, 194, 58, 0.3)); }
+    .error-icon { font-size: 64px; color: $danger-color; filter: drop-shadow(0 4px 12px rgba(245, 108, 108, 0.3)); }
+}
+.result-text {
+    font-size: 20px; margin-bottom: 24px; font-weight: 600;
+    &.text-success { color: $success-color; }
+    &.text-error { color: $text-primary; }
+}
+.metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+    
+    .metric-item {
+        background-color: #f5f7fa;
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        
+        &.full-width { grid-column: span 2; flex-direction: row; justify-content: space-between; align-items: center; }
+        
+        .label { font-size: 12px; color: $text-tertiary; }
+        .value { font-size: 15px; font-weight: 600; color: $text-primary; font-family: monospace; }
+    }
+}
+.error-console {
+    text-align: left;
+    background-color: #fff1f0;
+    border: 1px solid #ffccc7;
+    border-radius: 6px;
+    overflow: hidden;
+    
+    .console-header {
+        background-color: #ffccc7;
+        color: #cf1322;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    pre {
+        margin: 0;
+        padding: 12px;
+        font-size: 12px;
+        color: #cf1322;
+        max-height: 150px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+    }
+}
 </style>

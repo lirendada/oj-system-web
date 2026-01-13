@@ -45,6 +45,7 @@ declare module 'vue' {
     ElTag: typeof import('element-plus/es')['ElTag']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     GlobalHeader: typeof import('./components/GlobalHeader.vue')['default']
+    'GlobalHeader.syncConflict20260113102927OAUWJED': typeof import('./components/GlobalHeader.sync-conflict-20260113-102927-OAUWJED.vue')['default']
     MdViewer: typeof import('./components/MdViewer/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
