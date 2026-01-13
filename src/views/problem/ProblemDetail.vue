@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref, reactive, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import { getProblemDetail, submitProblem, getSubmitResult } from '@/api/problem'
+import { 
+  getProblemDetail, 
+  submitProblem, 
+  getSubmitResult,
+  getProblemSubmitList // ✅ 引入新接口
+} from '@/api/problem'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import CodeEditor from '@/components/CodeEditor/index.vue'
@@ -11,12 +16,13 @@ import {
   CircleCheckFilled, 
   CircleCloseFilled, 
   Timer, 
-  Cpu, 
-  CircleCheck,
-  RefreshRight,
-  InfoFilled,
-  CaretRight,
-  EditPen
+  Platform, 
+  RefreshRight, 
+  CaretRight, 
+  EditPen,
+  List,
+  Document, // ✅
+  Clock     // ✅
 } from '@element-plus/icons-vue'
 import { 
   type ProblemDetailVO, 
@@ -31,15 +37,23 @@ import {
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 
-// ... (Script 逻辑保持原样，完全不用动) ...
-// 注意：确保 CodeEditor 组件本身支持 height="100%"
-// 如果 CodeEditor 内部有固定高度，需要改为 CSS flex 自适应
-
 const route = useRoute()
 const userStore = useUserStore()
 const problem = ref<ProblemDetailVO>()
 const loading = ref(false)
 const submitting = ref(false)
+
+// ✅ Tab 相关状态
+const activeTab = ref<'description' | 'submissions'>('description')
+
+// ✅ 提交记录列表相关状态
+const submitList = ref<any[]>([])
+const submitTotal = ref(0)
+const submitLoading = ref(false)
+const submitQuery = reactive({
+  current: 1,
+  pageSize: 10
+})
 
 const resultDialogVisible = ref(false)
 const currentResult = ref<any>(null)
@@ -163,16 +177,15 @@ const handleResetCode = () => {
   }).catch(() => {})
 }
 
+// ✅ 加载题目详情
 const loadDetail = async () => {
   const idStr = route.params.id as string
   if (!idStr) return
   
-  // ✅ 新增：尝试从路由参数中获取 contestId
-  // 这样提交代码时，form.contestId 就有值了，后端就知道这是比赛提交
+  // 尝试从路由参数中获取 contestId
   if (route.query.contestId) {
     form.contestId = Number(route.query.contestId)
   } else if (route.params.contestId) {
-    // 兼容部分路由可能是 /contest/:contestId/problem/:id 的情况
     form.contestId = Number(route.params.contestId)
   }
 
@@ -187,6 +200,50 @@ const loadDetail = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// ✅ 加载提交记录列表
+const loadSubmitList = async () => {
+  if (!form.problemId) return
+  submitLoading.value = true
+  try {
+    const res = await getProblemSubmitList({
+      problemId: form.problemId,
+      current: submitQuery.current,
+      pageSize: submitQuery.pageSize
+    })
+    submitList.value = res.records
+    submitTotal.value = Number(res.total)
+  } catch (error) {
+    console.error(error)
+  } finally {
+    submitLoading.value = false
+  }
+}
+
+// ✅ 切换 Tab
+const handleTabChange = (tab: 'description' | 'submissions') => {
+  activeTab.value = tab
+  if (tab === 'submissions') {
+    submitQuery.current = 1
+    loadSubmitList()
+  }
+}
+
+// ✅ 点击记录查看详情
+const handleRecordClick = async (row: any) => {
+  try {
+    const res = await getSubmitResult(row.submitId)
+    showResult(res)
+  } catch (error) {
+    ElMessage.error('获取详情失败')
+  }
+}
+
+// ✅ 格式化时间
+const formatTime = (timeStr: string) => {
+  if (!timeStr) return '-'
+  return new Date(timeStr).toLocaleString()
 }
 
 const handleSubmit = async () => {
@@ -205,6 +262,10 @@ const handleSubmit = async () => {
     const submitId = await submitProblem(form)
     ElMessage.success('提交成功，正在判题...')
     startPolling(submitId)
+    // 如果当前在提交记录页，刷新一下
+    if (activeTab.value === 'submissions') {
+      loadSubmitList()
+    }
   } catch (error) {
     console.error(error)
     submitting.value = false
@@ -223,6 +284,10 @@ const startPolling = (submitId: string) => {
         clearInterval(pollingTimer.value)
         submitting.value = false
         showResult(res)
+        // 判题结束，刷新列表
+        if (activeTab.value === 'submissions') {
+           loadSubmitList()
+        }
       }
       if (retryCount > maxRetries) {
         clearInterval(pollingTimer.value)
@@ -255,120 +320,181 @@ onBeforeUnmount(() => {
   <div class="problem-detail-container">
     <splitpanes class="default-theme" style="height: 100%">
       
-      <pane min-size="20" :size="40">
+      <pane min-size="20" :size="45">
         <div class="panel-content left-panel">
-          <div class="pane-header">
-            <span class="pane-title"><el-icon><InfoFilled /></el-icon> 题目描述</span>
+          
+          <div class="pane-header tab-header">
+            <div 
+              class="tab-item" 
+              :class="{ active: activeTab === 'description' }"
+              @click="handleTabChange('description')"
+            >
+              <el-icon><Document /></el-icon> 题目描述
+            </div>
+            <div 
+              class="tab-item" 
+              :class="{ active: activeTab === 'submissions' }"
+              @click="handleTabChange('submissions')"
+            >
+              <el-icon><Clock /></el-icon> 提交记录
+            </div>
           </div>
           
           <div class="pane-body" v-loading="loading">
-             <div class="scroll-content" v-if="problem">
-              <div class="problem-header-block">
-                <h2>{{ problem?.problemId }}. {{ problem?.title }}</h2>
-                <div class="tags">
-                  <el-tag 
-                      v-if="problem?.difficulty" 
-                      :type="problem.difficulty === DifficultyEnum.EASY ? 'success' : (problem.difficulty === DifficultyEnum.MEDIUM ? 'warning' : 'danger')" 
-                      size="small"
-                      effect="dark" 
-                      style="margin-right: 5px;"
-                  >
+            
+            <div v-show="activeTab === 'description'" class="scroll-content typography-content" v-if="problem">
+              <div class="problem-title-area">
+                <h1 class="main-title">{{ problem?.problemId }}. {{ problem?.title }}</h1>
+                <div class="meta-info">
+                   <span class="difficulty-badge" 
+                        :class="problem.difficulty === DifficultyEnum.EASY ? 'easy' : 
+                               (problem.difficulty === DifficultyEnum.MEDIUM ? 'medium' : 'hard')">
                       {{ DifficultyText[problem.difficulty] }}
-                  </el-tag>
-                  <el-tag v-for="tag in problem?.tags" :key="tag.tagId" size="small" type="info">{{ tag.tagName }}</el-tag>
+                   </span>
+                   <span class="meta-divider">|</span>
+                   <div class="tags-wrapper">
+                      <span v-for="tag in problem?.tags" :key="tag.tagId" class="tag-pill">{{ tag.tagName }}</span>
+                   </div>
                 </div>
               </div>
 
-              <h3>题目描述</h3>
-              <MdViewer :content="problem.description" />
+              <div class="description-block">
+                <MdViewer :content="problem.description" />
+              </div>
 
-              <h3>输入描述</h3>
-              <MdViewer :content="problem.inputDescription" />
-
-              <h3>输出描述</h3>
-              <MdViewer :content="problem.outputDescription" />
-
-              <div class="samples">
-                <el-row :gutter="20">
-                  <el-col :span="12">
-                    <h3>样例输入</h3>
-                    <pre class="sample-box">{{ problem.sampleInput }}</pre>
-                  </el-col>
-                  <el-col :span="12">
-                    <h3>样例输出</h3>
-                    <pre class="sample-box">{{ problem.sampleOutput }}</pre>
-                  </el-col>
-                </el-row>
+              <div class="section-title">输入输出示例</div>
+              <div class="samples-container">
+                <div class="sample-item">
+                  <div class="sample-label">输入：</div>
+                  <div class="code-box">{{ problem.sampleInput }}</div>
+                </div>
+                <div class="sample-item">
+                   <div class="sample-label">输出：</div>
+                   <div class="code-box">{{ problem.sampleOutput }}</div>
+                </div>
               </div>
               
-              <h3 v-if="problem.hint">提示</h3>
-              <MdViewer v-if="problem.hint" :content="problem.hint" />
-
-              <div class="problem-limits">
-                <h4><el-icon><InfoFilled /></el-icon> 限制信息</h4>
-                <ul>
-                  <li><span>时间限制：</span>{{ problem.timeLimit }} ms</li>
-                  <li><span>内存限制：</span>{{ problem.memoryLimit }} MB</li>
-                  <li><span>堆栈限制：</span>{{ problem.stackLimit }} MB</li>
-                </ul>
+              <template v-if="problem.hint">
+                 <div class="section-title">提示</div>
+                 <MdViewer :content="problem.hint" />
+              </template>
+              
+              <div class="limits-footer">
+                <div class="limit-item"><el-icon><Timer /></el-icon> {{ problem.timeLimit }} ms</div>
+                <div class="limit-item"><el-icon><Platform /></el-icon> {{ problem.memoryLimit }} MB</div>
               </div>
             </div>
+
+            <div v-show="activeTab === 'submissions'" class="submission-list-container">
+              <el-table 
+                :data="submitList" 
+                v-loading="submitLoading" 
+                style="width: 100%" 
+                @row-click="handleRecordClick"
+                class="record-table"
+              >
+                <el-table-column label="状态" width="120">
+                  <template #default="{ row }">
+                    <span 
+                      :class="{
+                        'status-ac': row.judgeResult === JudgeResultEnum.AC,
+                        'status-wa': row.judgeResult !== JudgeResultEnum.AC
+                      }"
+                      style="font-weight: 600; font-size: 13px;"
+                    >
+                      {{ JudgeResultText[row.judgeResult] || '未知' }}
+                    </span>
+                  </template>
+                </el-table-column>
+                
+                <el-table-column prop="language" label="语言" width="100" />
+                
+                <el-table-column label="执行用时" width="100">
+                  <template #default="{ row }">
+                     {{ row.timeCost !== null ? row.timeCost + ' ms' : 'N/A' }}
+                  </template>
+                </el-table-column>
+                
+                <el-table-column label="消耗内存">
+                  <template #default="{ row }">
+                     {{ row.memoryCost !== null ? (row.memoryCost / 1024).toFixed(1) + ' MB' : 'N/A' }}
+                  </template>
+                </el-table-column>
+                
+                <el-table-column label="提交时间" min-width="160">
+                   <template #default="{ row }">
+                     <span style="color: #909399; font-size: 12px;">{{ formatTime(row.createTime) }}</span>
+                   </template>
+                </el-table-column>
+              </el-table>
+
+              <div class="pagination-wrapper">
+                 <el-pagination
+                  v-model:current-page="submitQuery.current"
+                  v-model:page-size="submitQuery.pageSize"
+                  :total="submitTotal"
+                  layout="prev, pager, next"
+                  small
+                  background
+                  @current-change="loadSubmitList"
+                />
+              </div>
+            </div>
+
           </div>
         </div>
       </pane>
 
-      <pane min-size="20" :size="60">
+      <pane min-size="20" :size="55">
         <div class="panel-content right-panel">
-          <div class="pane-header editor-header-bar">
+          <div class="pane-header editor-header">
             <div class="header-left">
-                <el-icon :size="16" color="#409eff"><EditPen /></el-icon>
-                <span class="header-title">代码</span>
+                <div class="pane-title">
+                   <el-icon><EditPen /></el-icon> Code
+                </div>
             </div>
             
-            <div class="actions">
+            <div class="header-right">
                 <el-select 
-                v-model="form.language" 
-                placeholder="语言" 
-                size="small"
-                style="width: 100px; margin-right: 10px;"
+                  v-model="form.language" 
+                  size="small"
+                  class="lang-select"
                 >
-                <el-option v-for="opt in languageOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+                  <el-option v-for="opt in languageOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
                 </el-select>
 
-                <el-tooltip content="重置代码" placement="bottom">
-                <el-button 
-                    :icon="RefreshRight" 
-                    circle 
-                    size="small"
-                    @click="handleResetCode" 
-                />
+                <div class="divider-v"></div>
+
+                <el-tooltip content="重置代码" placement="bottom" :show-after="500">
+                  <el-button link :icon="RefreshRight" class="icon-btn" @click="handleResetCode" />
                 </el-tooltip>
 
-                <el-popover placement="bottom" title="设置" :width="200" trigger="click">
-                <template #reference>
-                    <el-button :icon="Setting" circle size="small" style="margin-left: 8px" />
-                </template>
-                <el-form label-position="left" label-width="50px" size="small">
-                    <el-form-item label="主题">
-                    <el-select v-model="editorConfig.theme">
-                        <el-option label="Dark" value="vs-dark" />
-                        <el-option label="Light" value="vs" />
-                    </el-select>
-                    </el-form-item>
-                    <el-form-item label="字号">
-                    <el-input-number v-model="editorConfig.fontSize" :min="12" :max="24" controls-position="right" style="width: 100%" />
-                    </el-form-item>
-                </el-form>
+                <el-popover placement="bottom" title="编辑器设置" :width="200" trigger="click">
+                  <template #reference>
+                     <el-button link :icon="Setting" class="icon-btn" />
+                  </template>
+                  <el-form label-position="left" label-width="50px" size="small">
+                      <el-form-item label="主题">
+                      <el-select v-model="editorConfig.theme">
+                          <el-option label="Dark" value="vs-dark" />
+                          <el-option label="Light" value="vs" />
+                      </el-select>
+                      </el-form-item>
+                      <el-form-item label="字号">
+                      <el-input-number v-model="editorConfig.fontSize" :min="12" :max="24" controls-position="right" style="width: 100%" />
+                      </el-form-item>
+                  </el-form>
                 </el-popover>
                 
                 <el-button 
-                type="success" 
-                :loading="submitting" 
-                size="small"
-                @click="handleSubmit" 
-                style="margin-left: 15px; padding: 0 15px;"
+                  type="success" 
+                  :loading="submitting" 
+                  size="small"
+                  round
+                  class="run-btn"
+                  @click="handleSubmit" 
                 >
-                <el-icon style="margin-right: 4px"><CaretRight /></el-icon> 运行
+                  <el-icon><CaretRight /></el-icon> 提交运行
                 </el-button>
             </div>
           </div>
@@ -386,33 +512,44 @@ onBeforeUnmount(() => {
       </pane>
     </splitpanes>
 
-    <el-dialog v-model="resultDialogVisible" title="判题结果" width="30%" align-center>
+    <el-dialog v-model="resultDialogVisible" title="提交详情" width="450px" align-center class="result-dialog">
         <div class="result-content" v-if="currentResult">
-            <div class="status-icon">
-                <el-icon v-if="currentResult.judgeResult === JudgeResultEnum.AC" color="#67C23A" size="50"><CircleCheckFilled /></el-icon>
-                <el-icon v-else color="#F56C6C" size="50"><CircleCloseFilled /></el-icon>
+            <div class="status-icon-wrapper">
+               <transition name="el-zoom-in-center">
+                  <el-icon v-if="currentResult.judgeResult === JudgeResultEnum.AC" class="success-icon"><CircleCheckFilled /></el-icon>
+                  <el-icon v-else class="error-icon"><CircleCloseFilled /></el-icon>
+               </transition>
             </div>
             
-            <h2 :style="{ color: currentResult.judgeResult === JudgeResultEnum.AC ? '#67C23A' : '#F56C6C' }">
+            <h2 class="result-text" :class="{'text-success': currentResult.judgeResult === JudgeResultEnum.AC, 'text-error': currentResult.judgeResult !== JudgeResultEnum.AC}">
                 {{ JudgeResultText[currentResult.judgeResult] || '未知结果' }}
             </h2>
             
-            <div class="metrics">
-                <p><el-icon><Timer /></el-icon> 耗时：{{ currentResult.timeCost ?? 0 }} ms</p>
-                <p><el-icon><Cpu /></el-icon> 内存：{{ currentResult.memoryCost ?? 0 }} KB</p>
-                <p><el-icon><CircleCheck /></el-icon> 用例：{{ currentResult.passCaseCount ?? 0 }} / {{ currentResult.totalCaseCount ?? 0 }}</p>
+            <div class="metrics-grid">
+                <div class="metric-item">
+                   <span class="label">时间</span>
+                   <span class="value">{{ currentResult.timeCost ?? 0 }} ms</span>
+                </div>
+                <div class="metric-item">
+                   <span class="label">内存</span>
+                   <span class="value">{{ currentResult.memoryCost !== null ? (currentResult.memoryCost / 1024).toFixed(1) : 0 }} MB</span>
+                </div>
+                <div class="metric-item full-width">
+                   <span class="label">通过用例</span>
+                   <span class="value">{{ currentResult.passCaseCount ?? 0 }} / {{ currentResult.totalCaseCount ?? 0 }}</span>
+                </div>
             </div>
 
-            <div v-if="currentResult.errorMessage" class="error-msg">
-                <h4>错误信息：</h4>
+            <div v-if="currentResult.code" class="code-preview">
+                 <div class="console-header">提交代码</div>
+                 <pre>{{ currentResult.code }}</pre>
+            </div>
+
+            <div v-if="currentResult.errorMessage" class="error-console">
+                <div class="console-header">错误日志</div>
                 <pre>{{ currentResult.errorMessage }}</pre>
             </div>
         </div>
-        <template #footer>
-            <span class="dialog-footer">
-                <el-button type="primary" @click="resultDialogVisible = false">确 定</el-button>
-            </span>
-        </template>
     </el-dialog>
   </div>
 </template>
@@ -448,7 +585,7 @@ $danger-color: #f56c6c;
 
 /* 头部 Header - 极简风格 */
 .pane-header {
-  height: 48px; /* 稍微高一点，留白 */
+  height: 48px;
   min-height: 48px;
   padding: 0 20px;
   border-bottom: 1px solid $border-color;
@@ -456,7 +593,7 @@ $danger-color: #f56c6c;
   align-items: center;
   justify-content: space-between;
   background-color: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(5px); /* 磨砂效果 */
+  backdrop-filter: blur(5px);
   
   .pane-title {
     font-size: 14px;
@@ -465,6 +602,41 @@ $danger-color: #f56c6c;
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+}
+
+/* ✅ Tab Header 样式 */
+.tab-header {
+  gap: 20px;
+  justify-content: flex-start !important; 
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: $text-secondary;
+  cursor: pointer;
+  height: 100%;
+  position: relative;
+  transition: color 0.2s;
+  
+  &:hover { color: $primary-color; }
+  
+  &.active {
+    color: $text-primary;
+    font-weight: 600;
+    
+    &:after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background-color: $text-primary; 
+    }
   }
 }
 
@@ -496,7 +668,7 @@ $danger-color: #f56c6c;
   font-weight: 500;
   padding: 0 16px;
   letter-spacing: 0.5px;
-  box-shadow: 0 2px 6px rgba(103, 194, 58, 0.2); /* 绿色投影 */
+  box-shadow: 0 2px 6px rgba(103, 194, 58, 0.2);
   transition: all 0.2s;
   
   &:hover {
@@ -509,7 +681,7 @@ $danger-color: #f56c6c;
 .lang-select {
   width: 100px;
   :deep(.el-input__wrapper) {
-    box-shadow: none !important; /* 去除边框 */
+    box-shadow: none !important;
     background: transparent;
     padding: 0;
   }
@@ -523,15 +695,15 @@ $danger-color: #f56c6c;
 /* 内容区域 */
 .pane-body {
   flex: 1;
-  overflow-y: overlay; /* 现代浏览器覆盖滚动条 */
+  overflow-y: overlay;
   position: relative;
   
   &.no-padding { overflow: hidden; }
 }
 
 .scroll-content {
-  padding: 24px 32px; /* 增加左右留白，更像阅读模式 */
-  max-width: 900px; /* 限制最大宽度，防止大屏阅读困难 */
+  padding: 24px 32px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
@@ -586,7 +758,7 @@ $danger-color: #f56c6c;
 .typography-content {
   color: #333;
   line-height: 1.75;
-  font-size: 15px; /* 稍微大一点，阅读更舒服 */
+  font-size: 15px;
   
   :deep(h1), :deep(h2), :deep(h3) {
     color: $text-primary;
@@ -602,7 +774,7 @@ $danger-color: #f56c6c;
     padding: 2px 5px;
     border-radius: 4px;
     font-size: 0.9em;
-    color: #d63384; /* 代码高亮色 */
+    color: #d63384;
   }
   
   :deep(pre) {
@@ -688,9 +860,9 @@ $danger-color: #f56c6c;
   }
 }
 
-/* 拖拽条重写 (更优雅) */
+/* 拖拽条重写 */
 :deep(.splitpanes__splitter) { 
-    background-color: transparent; /* 透明 */
+    background-color: transparent;
     width: 10px; 
     border-left: 1px solid $border-color; 
     margin-left: -1px;
@@ -700,7 +872,7 @@ $danger-color: #f56c6c;
         background-color: rgba(64, 158, 255, 0.1);
     }
     
-    &:before { /* 拖拽手柄小圆点 */
+    &:before {
         content: "";
         position: absolute;
         left: 50%;
@@ -753,12 +925,13 @@ $danger-color: #f56c6c;
         .value { font-size: 15px; font-weight: 600; color: $text-primary; font-family: monospace; }
     }
 }
-.error-console {
+.error-console, .code-preview {
     text-align: left;
     background-color: #fff1f0;
     border: 1px solid #ffccc7;
     border-radius: 6px;
     overflow: hidden;
+    margin-top: 10px;
     
     .console-header {
         background-color: #ffccc7;
@@ -776,6 +949,43 @@ $danger-color: #f56c6c;
         max-height: 150px;
         overflow-y: auto;
         white-space: pre-wrap;
+        font-family: 'JetBrains Mono', monospace;
     }
+}
+
+/* ✅ 提交代码预览样式覆盖 */
+.code-preview {
+    background-color: $bg-secondary;
+    border-color: $border-color;
+    
+    .console-header {
+        background-color: #f5f5f5;
+        color: $text-secondary;
+        border-bottom: 1px solid $border-color;
+    }
+    
+    pre {
+        color: $text-primary;
+    }
+}
+
+/* ✅ 提交记录列表样式 */
+.submission-list-container {
+  padding: 0;
+}
+
+.record-table {
+  :deep(.el-table__row) {
+    cursor: pointer;
+  }
+}
+
+.status-ac { color: $success-color; }
+.status-wa { color: $text-secondary; }
+
+.pagination-wrapper {
+  padding: 20px;
+  display: flex;
+  justify-content: center;
 }
 </style>

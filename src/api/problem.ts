@@ -55,3 +55,12 @@ export const getRankList = (type: 'daily' | 'weekly' | 'monthly' | 'total' = 'to
   }
   return request.get<any, RankItemVO[]>(url)
 }
+
+
+export function getProblemSubmitList(data: { problemId: string, current: number, pageSize: number }) {
+  return request<any>({
+    url: '/problem/submit/result/list',
+    method: 'post',
+    data
+  })
+}
