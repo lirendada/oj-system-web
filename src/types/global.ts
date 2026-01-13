@@ -595,3 +595,12 @@ export interface ContestRankVO {
   // 题目得分详情: key是problemId, value是得分
   problemScores: Record<string, number>; 
 }
+
+/**
+ * 用户注册请求参数类型
+ */
+export interface UserRegisterRequest {
+  userAccount: string
+  password: string
+  checkPassword: string
+}
