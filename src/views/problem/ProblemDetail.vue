@@ -181,7 +181,7 @@ const handleResetCode = () => {
 const loadDetail = async () => {
   const idStr = route.params.id as string
   if (!idStr) return
-  
+
   // 尝试从路由参数中获取 contestId
   if (route.query.contestId) {
     form.contestId = Number(route.query.contestId)
@@ -192,9 +192,12 @@ const loadDetail = async () => {
   loading.value = true
   try {
     const res = await getProblemDetail(idStr)
-    problem.value = res
-    form.problemId = res.problemId
-    initCodeCache(form.problemId)
+    const data = res?.data
+    problem.value = data
+    form.problemId = data?.problemId
+    if (data?.problemId) {
+      initCodeCache(form.problemId)
+    }
   } catch (error) {
     console.error(error)
   } finally {
@@ -212,10 +215,13 @@ const loadSubmitList = async () => {
       current: submitQuery.current,
       pageSize: submitQuery.pageSize
     })
-    submitList.value = res.records
-    submitTotal.value = Number(res.total)
+    const data = res?.data
+    submitList.value = data?.records || []
+    submitTotal.value = Number(data?.total || 0)
   } catch (error) {
     console.error(error)
+    submitList.value = []
+    submitTotal.value = 0
   } finally {
     submitLoading.value = false
   }
@@ -234,7 +240,7 @@ const handleTabChange = (tab: 'description' | 'submissions') => {
 const handleRecordClick = async (row: any) => {
   try {
     const res = await getSubmitResult(row.submitId)
-    showResult(res)
+    showResult(res?.data)
   } catch (error) {
     ElMessage.error('获取详情失败')
   }
@@ -280,10 +286,11 @@ const startPolling = (submitId: string) => {
     try {
       retryCount++
       const res = await getSubmitResult(submitId)
-      if (res.status !== SubmitStatusEnum.PENDING && res.status !== SubmitStatusEnum.JUDGING) {
+      const data = res?.data
+      if (data && data.status !== SubmitStatusEnum.PENDING && data.status !== SubmitStatusEnum.JUDGING) {
         clearInterval(pollingTimer.value)
         submitting.value = false
-        showResult(res)
+        showResult(data)
         // 判题结束，刷新列表
         if (activeTab.value === 'submissions') {
            loadSubmitList()

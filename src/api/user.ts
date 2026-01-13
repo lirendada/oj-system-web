@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 // 引入全局类型
-import type { UserLoginDTO, UserLoginVO } from '@/types/global'
+import type { UserLoginDTO, UserLoginVO, Result } from '@/types/global'
 
 enum Api {
   Login = '/user/login'
@@ -13,4 +13,8 @@ enum Api {
  */
 export const login = (data: UserLoginDTO) => {
   return request.post<any, UserLoginVO>(Api.Login, data)
+}
+
+export const getInfo = () => {
+  return request.get<any, Result<any>>('/user/info')
 }

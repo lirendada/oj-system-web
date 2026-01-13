@@ -54,16 +54,17 @@ const loadDetail = async () => {
   loading.value = true
   try {
     const res = await getContestDetail(contestId)
-    contest.value = res
-    
+    const data = res?.data
+    contest.value = data
+
     // 如果比赛进行中或已结束，加载题目和排行榜
-    if (res.status !== ContestStatusEnum.NOT_STARTED) {
+    if (data && data.status !== ContestStatusEnum.NOT_STARTED) {
       loadProblems()
       loadRank()
     }
-    
+
     // 启动倒计时
-    if (res.status === ContestStatusEnum.NOT_STARTED || res.status === ContestStatusEnum.IN_PROGRESS) {
+    if (data && (data.status === ContestStatusEnum.NOT_STARTED || data.status === ContestStatusEnum.IN_PROGRESS)) {
       startTimer()
     }
   } catch (error) {
@@ -76,9 +77,10 @@ const loadDetail = async () => {
 const loadProblems = async () => {
   try {
     const res = await getContestProblemList(contestId)
-    problemList.value = res
+    problemList.value = res?.data || []
   } catch (error) {
     console.error(error)
+    problemList.value = []
   }
 }
 
@@ -88,13 +90,14 @@ const loadRank = async () => {
   rankLoading.value = true
   try {
     const res = await getContestRank(contestId)
-    rankList.value = res
+    rankList.value = res?.data || []
     // 加个小提示，体验更好
     // if (!loading.value) { // 页面初次加载时不提示
     //    ElMessage.success({ message: '榜单已更新', grouping: true, duration: 1500 })
     // }
   } catch (error) {
     console.error(error)
+    rankList.value = []
   } finally {
     // 强制延迟 500ms，让旋转动画展示一会，避免闪烁
     setTimeout(() => {

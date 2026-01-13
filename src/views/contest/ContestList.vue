@@ -35,10 +35,13 @@ const loadData = async () => {
   loading.value = true
   try {
     const res = await getContestList(queryParams)
-    contestList.value = res.records
-    total.value = Number(res.total)
+    const data = res?.data
+    contestList.value = data?.records || []
+    total.value = Number(data?.total || 0)
   } catch (error) {
     console.error(error)
+    contestList.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }

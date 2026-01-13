@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProblemList, getRankList } from '@/api/problem'
+import { useUserStore } from '@/stores/user' 
 import { Search, Refresh, Trophy } from '@element-plus/icons-vue'
 import { 
   type ProblemVO, 
@@ -12,13 +13,23 @@ import {
 } from '@/types/global'
 
 const router = useRouter()
+const route = useRoute()
+const userStore = useUserStore()
+
 const loading = ref(false)
 const tableData = ref<ProblemVO[]>([])
 const total = ref(0)
-const route = useRoute()
 
-// ✅ 新增：默认头像常量
 const DEFAULT_AVATAR = 'https://p.ssl.qhimg.com/sdm/480_480_/t01520a1bd1802ae864.jpg'
+
+// ✅ 核心修复：安全获取当前用户 ID
+// 使用 computed 缓存，并添加多重空值检查，防止页面一加载就报错
+const currentUserId = computed(() => {
+  const info = userStore.userInfo
+  if (!info) return null
+  // 兼容两种结构：直接在 info 里，或者在 info.user 里
+  return info.userId || (info.user && info.user.userId) || null
+})
 
 // 排行榜相关状态
 const rankLoading = ref(false)
@@ -38,12 +49,14 @@ const loadData = async () => {
   loading.value = true
   try {
     const res = await getProblemList(queryParams)
-    tableData.value = res.records
-    // ✅ 修复：后端返回的 total 是 String 类型 (Jackson配置导致)，需要强制转为 Number
-    // 否则 Element Plus 分页组件无法正确计算总页数，导致看起来只有一页
-    total.value = Number(res.total)
+    // ✅ res.data 才是真正的数据
+    const data = res?.data
+    tableData.value = data?.records || []
+    total.value = Number(data?.total || 0)
   } catch (error) {
     console.error(error)
+    tableData.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
@@ -59,9 +72,13 @@ const loadRankData = async () => {
       total: 'total'
     }
     const res = await getRankList(typeMap[activeRankTab.value])
-    rankList.value = res
+    // ✅ res.data 才是真正的数组
+    const dataList = res?.data || []
+    // 过滤掉 null 或无效的排行榜数据
+    rankList.value = dataList.filter((item: any) => item && item.userId)
   } catch (error) {
     console.error('获取排行榜失败', error)
+    rankList.value = [] // 出错时清空数据
   } finally {
     rankLoading.value = false
   }
@@ -97,7 +114,6 @@ const getRankIndexColor = (index: number) => {
   return '#909399'
 }
 
-// 动态获取文案
 const getRankCountText = () => {
   switch (activeRankTab.value) {
     case 'day': return '今日通过'
@@ -108,39 +124,29 @@ const getRankCountText = () => {
   }
 }
 
-// ✅ 新增：处理表格排序事件
 const handleSortChange = ({ prop, order }: { prop: string, order: string }) => {
-  // Element Plus 的 order 是 'ascending' / 'descending' / null
-  // 后端 PageRequest 通常接收 'ascend' / 'descend'
   if (!order) {
     queryParams.sortField = undefined
     queryParams.sortOrder = undefined
   } else {
-    // 映射字段名（如果前端 prop 和后端数据库字段不一致，可以在这里转换）
     queryParams.sortField = prop
     queryParams.sortOrder = order === 'ascending' ? 'ascend' : 'descend'
   }
-  // 重置页码并重新加载
   queryParams.current = 1
   loadData()
 }
 
 onMounted(() => {
-  // 1. 检查 URL 是否有 keyword 参数
   if (route.query.keyword) {
     queryParams.keyword = route.query.keyword as string
   }
-  
-  // 2. 加载数据
   loadData()
   loadRankData()
 })
 
-// 可选：监听路由参数变化（如果用户在题目列表页再次搜索，URL变了但组件未重新挂载）
-import { watch } from 'vue'
 watch(() => route.query.keyword, (newVal) => {
   queryParams.keyword = (newVal as string) || ''
-  queryParams.current = 1 // 重置到第一页
+  queryParams.current = 1
   loadData()
 })
 </script>
@@ -261,22 +267,23 @@ watch(() => route.query.keyword, (newVal) => {
             <div v-if="rankList.length === 0" class="empty-rank">
               <el-empty description="暂无上榜数据" :image-size="60" />
             </div>
-            <div 
+            <div
               v-else
-              v-for="(item, index) in rankList" 
-              :key="item.userId" 
+              v-for="(item, index) in rankList"
+              :key="item?.userId"
               class="rank-item"
+              :class="{ 'my-rank': currentUserId && item?.userId === currentUserId }"
             >
               <div class="rank-index" :style="{ color: getRankIndexColor(index), fontWeight: index < 3 ? 'bold' : 'normal' }">
                 {{ index + 1 }}
               </div>
               <div class="rank-user">
-                <el-avatar :size="32" :src="item.avatar || DEFAULT_AVATAR" class="user-avatar">
-                   {{ item.nickname?.charAt(0)?.toUpperCase() }}
+                <el-avatar :size="32" :src="item?.avatar || DEFAULT_AVATAR" class="user-avatar">
+                   {{ item?.nickname?.charAt(0)?.toUpperCase() }}
                 </el-avatar>
                 <div class="user-info">
-                   <div class="nickname" :title="item.nickname">{{ item.nickname }}</div>
-                   <div class="desc">{{ getRankCountText() }} <span class="ac-num">{{ item.acceptedCount ?? 0 }}</span> 题</div>
+                   <div class="nickname" :title="item?.nickname">{{ item?.nickname }}</div>
+                   <div class="desc">{{ getRankCountText() }} <span class="ac-num">{{ item?.acceptedCount ?? 0 }}</span> 题</div>
                 </div>
               </div>
             </div>
@@ -356,9 +363,15 @@ watch(() => route.query.keyword, (newVal) => {
   padding: 14px 8px; 
   border-radius: 8px; 
   transition: background-color 0.2s;
+  cursor: default;
 }
 .rank-item:hover {
   background-color: #f9fafe; 
+}
+
+/* ✅ 高亮自己的排名 */
+.rank-item.my-rank {
+  background-color: #ecf5ff;
 }
 
 .rank-index {
