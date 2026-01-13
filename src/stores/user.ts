@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { getInfo } from '@/api/user'
 
 export const useUserStore = defineStore('user', () => {
   // 1. 定义 State
@@ -52,6 +53,20 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('userInfo') // ✅ 也要清除用户信息
   }
 
+  // ✅ 获取当前登录用户信息
+  const getLoginUser = async () => {
+    try {
+      const res = await getInfo()
+      if (res?.data) {
+        setUserInfo(res.data)
+        return res.data
+      }
+    } catch (error) {
+      console.error('获取用户信息失败', error)
+    }
+    return null
+  }
+
   // 3. 必须 return 出去，外部才能调用
   return {
     token,
@@ -60,6 +75,7 @@ export const useUserStore = defineStore('user', () => {
     setToken,
     setUserInfo,
     setRole,
-    logout
+    logout,
+    getLoginUser
   }
 })

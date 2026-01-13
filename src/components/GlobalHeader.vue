@@ -178,8 +178,8 @@ const handleGlobalSearch = () => {
                   <div class="u-nickname">{{ nickName }}</div>
                   <div class="u-desc">欢迎回到 Liren OJ</div>
                 </div>
-                <el-dropdown-item divided :icon="User">个人中心</el-dropdown-item>
-                <el-dropdown-item :icon="Edit">修改资料</el-dropdown-item>
+                <el-dropdown-item divided :icon="User" @click="router.push('/center')">个人中心</el-dropdown-item>
+                <!-- <el-dropdown-item :icon="Edit" @click="router.push('/center')">修改资料</el-dropdown-item> -->
                 <el-dropdown-item divided :icon="SwitchButton" @click="handleLogout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>

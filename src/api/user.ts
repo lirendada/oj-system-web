@@ -43,3 +43,11 @@ export const sendForgetCode = (email: string) => {
 export const resetPassword = (data: any) => {
   return request.post<any, any>('/user/forget/reset', data)
 }
+
+/**
+ * 更新个人信息
+ * @param data
+ */
+export const updateMyInfo = (data: any) => {
+  return request.post<any, any>('/user/update/my', data)
+}
