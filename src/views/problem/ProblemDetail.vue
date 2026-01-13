@@ -166,6 +166,16 @@ const handleResetCode = () => {
 const loadDetail = async () => {
   const idStr = route.params.id as string
   if (!idStr) return
+  
+  // ✅ 新增：尝试从路由参数中获取 contestId
+  // 这样提交代码时，form.contestId 就有值了，后端就知道这是比赛提交
+  if (route.query.contestId) {
+    form.contestId = Number(route.query.contestId)
+  } else if (route.params.contestId) {
+    // 兼容部分路由可能是 /contest/:contestId/problem/:id 的情况
+    form.contestId = Number(route.params.contestId)
+  }
+
   loading.value = true
   try {
     const res = await getProblemDetail(idStr)

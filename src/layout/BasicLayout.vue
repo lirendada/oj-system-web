@@ -22,7 +22,7 @@ const isProblemDetail = computed(() => {
     </main>
     
     <footer class="global-footer" v-if="!isProblemDetail">
-      <p>Liren OJ &copy; 2026 Designed by Liren</p>
+      <p>Liren OJ &copy; 2026 Designed by lirendada</p>
     </footer>
 
     <el-backtop :right="40" :bottom="40" v-if="!isProblemDetail">

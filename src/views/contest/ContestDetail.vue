@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
   getContestDetail, 
@@ -17,8 +17,8 @@ import {
   Timer, 
   Trophy, 
   List, 
-  UserFilled,
-  Lock
+  Lock,
+  Refresh // ✅ 新增引用
 } from '@element-plus/icons-vue'
 import { 
   type ContestVO, 
@@ -31,10 +31,15 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
+// ✅ 新增：默认头像常量
+const DEFAULT_AVATAR = 'https://p.ssl.qhimg.com/sdm/480_480_/t01520a1bd1802ae864.jpg'
+
 const contestId = route.params.id as string
 const loading = ref(false)
+// ✅ 新增：榜单加载状态，用于控制刷新按钮动画
+const rankLoading = ref(false)
+
 const contest = ref<ContestVO>()
-const activeTab = ref('problems')
 
 // 数据列表
 const problemList = ref<ContestProblemVO[]>([])
@@ -77,12 +82,24 @@ const loadProblems = async () => {
   }
 }
 
+// ✅ 优化：加载排行榜逻辑，增加 loading 动画效果
 const loadRank = async () => {
+  if (rankLoading.value) return // 防止重复点击
+  rankLoading.value = true
   try {
     const res = await getContestRank(contestId)
     rankList.value = res
+    // 加个小提示，体验更好
+    // if (!loading.value) { // 页面初次加载时不提示
+    //    ElMessage.success({ message: '榜单已更新', grouping: true, duration: 1500 })
+    // }
   } catch (error) {
     console.error(error)
+  } finally {
+    // 强制延迟 500ms，让旋转动画展示一会，避免闪烁
+    setTimeout(() => {
+      rankLoading.value = false
+    }, 500)
   }
 }
 
@@ -242,7 +259,23 @@ onMounted(() => {
               <template #header>
                 <div class="panel-header">
                   <span class="panel-title"><el-icon><Trophy /></el-icon> 实时榜单</span>
-                  <el-button type="primary" link size="small" @click="loadRank">刷新</el-button>
+                  
+                  <el-button 
+                    type="primary" 
+                    link 
+                    size="small" 
+                    @click="loadRank" 
+                    class="refresh-btn"
+                  >
+                    <el-icon 
+                      class="refresh-icon" 
+                      :class="{ 'is-spinning': rankLoading }"
+                    >
+                      <Refresh />
+                    </el-icon>
+                    <span style="margin-left: 4px">刷新</span>
+                  </el-button>
+
                 </div>
               </template>
 
@@ -258,7 +291,7 @@ onMounted(() => {
                 <el-table-column label="选手" width="160" fixed>
                   <template #default="{ row }">
                     <div class="rank-user">
-                      <el-avatar :size="24" :src="row.avatar" class="rank-avatar">
+                      <el-avatar :size="24" :src="row.avatar || DEFAULT_AVATAR" class="rank-avatar">
                         {{ row.nickname?.charAt(0)?.toUpperCase() }}
                       </el-avatar>
                       <span class="rank-nickname" :title="row.nickname">{{ row.nickname }}</span>
@@ -300,7 +333,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-    /* 新增样式 */
 .panel-card {
   height: 100%;
   border-radius: 8px;
@@ -388,12 +420,6 @@ onMounted(() => {
   border-radius: 12px;
   min-height: 500px;
 }
-.tab-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-}
 
 /* 题目列表样式 */
 .problem-index {
@@ -442,5 +468,26 @@ onMounted(() => {
 }
 .score-zero {
   color: #dcdfe6;
+}
+
+/* ✅ 新增：刷新按钮及动画样式 */
+.refresh-btn {
+  font-weight: normal;
+  transition: all 0.3s;
+}
+.refresh-btn:hover {
+  color: #409eff;
+}
+.refresh-icon {
+  font-size: 16px;
+  transition: transform 0.5s ease;
+}
+/* 旋转动画 */
+.is-spinning {
+  animation: rotate 1s linear infinite;
+}
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>
