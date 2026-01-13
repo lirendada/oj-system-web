@@ -471,6 +471,43 @@ userInfo: UserLoginVO | null
 - 统一错误处理
 - Token 认证机制
 
+**⚠️ 重要：响应数据访问规范**
+
+响应拦截器返回完整的响应对象 `{ code, message, data }`，**不是**直接返回 data。
+
+**错误示范：**
+```typescript
+// ❌ 错误：直接访问 res
+const res = await getProblemList()
+data.value = res.records  // res 不是数组！
+```
+
+**正确示范：**
+```typescript
+// ✅ 正确：访问 res.data
+const res = await getProblemList()
+const data = res?.data
+data.value = data?.records || []
+```
+
+**安全模式模板：**
+```typescript
+const loadData = async () => {
+  loading.value = true
+  try {
+    const res = await apiCall()
+    const data = res?.data           // 1. 先获取 data
+    list.value = data?.items || []   // 2. 使用可选链 + 默认值
+    total.value = Number(data?.total || 0)
+  } catch (error) {
+    console.error(error)
+    list.value = []  // 3. catch 中重置数据
+  } finally {
+    loading.value = false
+  }
+}
+```
+
 **配置内容：**
 ```typescript
 // 请求配置
@@ -485,6 +522,7 @@ timeout: 10000
 - code !== 1000 时判定为失败
 - 自动跳转登录页（401）
 - 错误消息提示（ElMessage）
+- 返回完整的 res 对象（包含 code, message, data）
 
 // 响应数据格式
 interface Result<T> {
@@ -694,18 +732,65 @@ interface ContestRankVO {
 state: {
   token: string;                    // 用户 Token
   userInfo: UserLoginVO | null;     // 用户信息
+  role: string;                     // 用户角色（预留）
 }
 ```
 
 **方法列表：**
-- `setLoginState(data: UserLoginVO)`：设置登录状态
-- `logout()`：登出并清除状态
-- `loadState()`：从 localStorage 加载状态
+- `setToken(newToken: string)`：设置 Token 并持久化
+- `setUserInfo(info: any)`：设置用户信息并持久化
+- `setRole(newRole: string)`：设置角色
+- `logout()`：登出并清除所有状态
 
 **持久化策略：**
-- 使用 localStorage 存储 token 和 userInfo
-- 应用启动时自动从 localStorage 恢复状态
-- 登出时清除 localStorage 中的所有用户数据
+- ✅ **token** 持久化到 `localStorage.getItem('token')`
+- ✅ **userInfo** 持久化到 `localStorage.getItem('userInfo')`（JSON 格式）
+- ✅ 应用启动时自动从 localStorage 恢复状态
+- ✅ 登出时清除 `localStorage` 中的所有用户数据（token + userInfo）
+
+**⚠️ 重要：用户信息显示问题修复**
+
+**问题描述：**
+登录后显示正确的用户名，但刷新页面后变成"用户"或默认值。
+
+**原因分析：**
+- userInfo 没有持久化到 localStorage
+- 刷新页面后 userInfo 变成空对象 `{}`
+- GlobalHeader.vue 读取不到用户信息，显示默认值
+
+**修复方案：**
+```typescript
+// 1. 初始化时从 localStorage 读取
+const getUserInfoFromStorage = () => {
+  try {
+    const savedInfo = localStorage.getItem('userInfo')
+    return savedInfo ? JSON.parse(savedInfo) : {}
+  } catch (error) {
+    console.error('读取用户信息失败', error)
+    return {}
+  }
+}
+const userInfo = ref<any>(getUserInfoFromStorage())
+
+// 2. 设置用户信息时保存到 localStorage
+const setUserInfo = (info: any) => {
+  userInfo.value = info
+  try {
+    localStorage.setItem('userInfo', JSON.stringify(info))
+  } catch (error) {
+    console.error('保存用户信息失败', error)
+  }
+}
+
+// 3. 退出登录时清除
+const logout = () => {
+  token.value = ''
+  userInfo.value = {}
+  role.value = ''
+  localStorage.removeItem('token')
+  localStorage.removeItem('userInfo')
+}
+```
 
 **数据结构：**
 ```typescript
@@ -1219,7 +1304,80 @@ proxy: {
    - 复杂逻辑添加说明
    - API 接口添加 JSDoc
 
-### 12.2 调试技巧
+### 12.2 数据访问安全规范
+
+**⚠️ 项目核心规范：所有 API 调用必须遵守数据访问安全模式**
+
+#### 12.2.1 响应数据访问模式
+
+**原则：**
+1. 响应拦截器返回 `{ code, message, data }` 结构
+2. 必须通过 `res.data` 访问真正的数据
+3. 使用可选链 `?.` 防止空值错误
+4. 提供默认值 `|| []` 和 `|| 0`
+5. catch 块中重置数据
+
+**标准模板：**
+```typescript
+const loadData = async () => {
+  loading.value = true
+  try {
+    const res = await apiCall(params)
+    const data = res?.data                    // ✅ 步骤1：获取 data
+    list.value = data?.items || []            // ✅ 步骤2：可选链 + 默认值
+    total.value = Number(data?.total || 0)    // ✅ 步骤3：Number 转换 + 默认值
+  } catch (error) {
+    console.error(error)
+    list.value = []                           // ✅ 步骤4：重置数据
+    total.value = 0
+  } finally {
+    loading.value = false
+  }
+}
+```
+
+#### 12.2.2 已修复的文件清单
+
+| 文件 | 修复内容 | 状态 |
+|------|---------|------|
+| ProblemList.vue | loadData, loadRankData | ✅ 已修复 |
+| ProblemDetail.vue | loadDetail, loadSubmitList, handleRecordClick, startPolling | ✅ 已修复 |
+| ContestDetail.vue | loadDetail, loadProblems, loadRank | ✅ 已修复 |
+| ContestList.vue | loadData | ✅ 已修复 |
+| LoginView.vue | 正确使用 res.data | ✅ 无问题 |
+| user.ts (store) | userInfo 持久化 | ✅ 已修复 |
+
+#### 12.2.3 常见错误模式
+
+**❌ 错误 1：直接访问 res**
+```typescript
+const res = await getList()
+value = res.records  // 错误：res 不是数组
+```
+
+**❌ 错误 2：缺少空值检查**
+```typescript
+const res = await getList()
+value = res.data.records  // 错误：data 可能为 undefined
+```
+
+**❌ 错误 3：没有默认值**
+```typescript
+const res = await getList()
+value = res?.data.records  // 不安全：records 可能为 undefined
+```
+
+#### 12.2.4 正确模式对比
+
+| 场景 | 错误写法 | 正确写法 |
+|------|---------|---------|
+| 数组赋值 | `value = res.records` | `value = res?.data?.records \|\| []` |
+| 对象赋值 | `value = res.data` | `value = res?.data \|\| {}` |
+| 数字赋值 | `value = res.total` | `value = Number(res?.data?.total \|\| 0)` |
+| 传递参数 | `fn(res.data)` | `fn(res?.data)` |
+| 条件判断 | `if (res.status)` | `if (res?.data?.status)` |
+
+### 12.3 调试技巧
 
 1. **Vue DevTools**
    - 查看组件树
@@ -1250,8 +1408,30 @@ Liren OJ Web 是一个功能完善、设计良好的在线判题系统前端项�
 
 ### 当前状态
 
-- **已完成**：题目模块、竞赛模块、排行榜模块、用户登录
-- **待开发**：用户注册、提交记录、管理后台等
+- **已完成**：
+  - ✅ 题目模块（列表、详情、提交、判题）
+  - ✅ 竞赛模块（列表、详情、报名、排行榜）
+  - ✅ 排行榜模块（日榜、周榜、月榜、总榜）
+  - ✅ 用户登录
+  - ✅ 全局导航栏
+  - ✅ 全局搜索
+  - ✅ 数据访问安全修复（所有 API 调用）
+  - ✅ 用户信息持久化（修复刷新丢失问题）
+
+- **待开发**：
+  - ⏳ 用户注册
+  - ⏳ 提交记录增强（代码查看、统计分析）
+  - ⏳ 个人中心页面
+  - ⏳ 管理后台
+  - ⏳ 题解模块
+
+### 已知问题和修复
+
+| 问题 | 状态 | 修复说明 |
+|------|------|---------|
+| API 响应数据访问错误 | ✅ 已修复 | 所有组件使用 `res.data` 访问数据 |
+| 刷新页面用户信息丢失 | ✅ 已修复 | userInfo 持久化到 localStorage |
+| 排行榜 null 元素报错 | ✅ 已修复 | 添加数据过滤和可选链 |
 
 ### 适用场景
 
