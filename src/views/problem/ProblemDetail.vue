@@ -265,9 +265,24 @@ const handleSubmit = async () => {
   saveToLocalStorage()
   submitting.value = true
   try {
-    const submitId = await submitProblem(form)
+    // 🔴 修改前 (错误原因): 
+    // const submitId = await submitProblem(form) 
+    // 此时 submitId 是 { code: 1000, msg: '...', data: '12345...' } 这个对象
+
+    // 🟢 修改后 (正确写法):
+    // 1. 先拿到完整的响应对象 res
+    const res = await submitProblem(form)
+    // 2. 再从 data 字段中取出真正的字符串 ID
+    const submitId = res.data 
+
+    if (!submitId) {
+      throw new Error('未获取到提交ID')
+    }
+
     ElMessage.success('提交成功，正在判题...')
+    // 3. 把真正的字符串 ID 传给轮询函数
     startPolling(submitId)
+    
     // 如果当前在提交记录页，刷新一下
     if (activeTab.value === 'submissions') {
       loadSubmitList()
